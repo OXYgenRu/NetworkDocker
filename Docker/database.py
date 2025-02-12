@@ -75,6 +75,27 @@ create_history_query = """
     INSERT INTO history (created_at, updated_at, container_id, type, comment, file_id) VALUES (?, ?, ?, ?, ?, ?)
 """
 
+update_container_query = """
+    UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizers_id=?,normalise_dataset=?,
+    name=?,comment=? WHERE id=?
+"""
+
+update_file_query = """
+    UPDATE files SET updated_at=?,type=?,comment=?,path=? WHERE id=?
+"""
+
+update_model_query = """
+    UPDATE models SET updated_at=?,file_id=?,was_trained=?,sequential=?,code=? WHERE id=?
+"""
+
+update_optimizer_query = """
+    UPDATE optimizers SET updated_at=?,file_id=?,was_trained=?,code=? WHERE id = ?
+"""
+
+update_history_query = """
+    UPDATE history SET updated_at=?,container_id=?,type=?,comment=?,file_id=? WHERE id=?
+"""
+
 
 class Container:
     def __init__(self, container_id=None, created_at=None, updated_at=None, dataset_id=None, model_id=None,
@@ -100,6 +121,40 @@ class File:
         self.path = path
 
 
+class Model:
+    def __init__(self, model_id=None, created_at=None, updated_at=None, file_id=None, was_trained=None, sequential=None,
+                 code=None):
+        self.model_id = model_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.file_id = file_id
+        self.was_trained = was_trained
+        self.sequential = sequential
+        self.code = code
+
+
+class Optimizer:
+    def __init__(self, optimizer_id=None, created_at=None, updated_at=None, file_id=None, was_trained=None, code=None):
+        self.optimizer_id = optimizer_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.file_id = file_id
+        self.was_trained = was_trained
+        self.code = code
+
+
+class History:
+    def __init__(self, history_id=None, created_at=None, updated_at=None, container_id=None, history_type=None,
+                 comment=None, file_id=None):
+        self.history_id = history_id
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.container_id = container_id
+        self.history_type = history_type
+        self.comment = comment
+        self.file_id = file_id
+
+
 class DB:
     def __init__(self):
         self.conn = sqlite3.connect("local/database.db")
@@ -109,57 +164,62 @@ class DB:
         self.cursor.executescript(migration_query)
         self.conn.commit()
 
-    def create_container(self, dataset_id: int, model_id: int, optimizers_id: int,
-                         normalise_dataset: bool, name: str, comment: str):
-        now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    def create_container(self, container: Container):
+        # now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         self.cursor.execute(create_container_query,
-                            (now_time, now_time, dataset_id, model_id, optimizers_id, normalise_dataset, name, comment))
+                            (container.created_at, container.updated_at, container.dataset_id, container.model_id,
+                             container.optimizers_id,
+                             container.normalise_dataset, container.name, container.comment))
         new_id = self.cursor.lastrowid
 
         self.conn.commit()
 
         return new_id
 
-    def create_file(self, file_type: str, comment: str) -> int:
-        now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        path = f"{now_time}.{file_type}.txt"
+    def create_file(self, file: File) -> int:
+        # now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # path = f"{now_time}.{file.file_type}.txt"
 
-        self.cursor.execute(create_file_query, (now_time, now_time, file_type, comment, path))
+        self.cursor.execute(create_file_query,
+                            (file.created_at, file.updated_at, file.file_type, file.comment, file.path))
         new_id = self.cursor.lastrowid
 
         self.conn.commit()
 
         return new_id
 
-    def create_model(self, file_id: int, was_trained: bool, sequential: bool, code: str) -> int:
-        now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    def create_model(self, model: Model) -> int:
+        # now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        self.cursor.execute(create_model_query, (now_time, now_time, file_id, was_trained, sequential, code))
+        self.cursor.execute(create_model_query,
+                            (model.created_at, model.updated_at, model.file_id, model.was_trained, model.sequential,
+                             model.code))
         new_id = self.cursor.lastrowid
 
         self.conn.commit()
 
         return new_id
 
-    def create_optimizer(self, file_id: int, was_trained: bool, code: str) -> int:
-        now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-        self.cursor.execute(create_optimizer_query, (now_time, now_time, file_id, was_trained, code))
+    def create_optimizer(self, optimizer: Optimizer) -> int:
+        self.cursor.execute(create_optimizer_query,
+                            (optimizer.created_at, optimizer.updated_at, optimizer.file_id, optimizer.was_trained,
+                             optimizer.code))
         new_id = self.cursor.lastrowid
 
         self.conn.commit()
 
         return new_id
 
-    def create_history(self, container_id: int, history_type: str, comment: str, file_id: int) -> int:
-        now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-        self.cursor.execute(create_history_query, (now_time, now_time, container_id, history_type, comment, file_id))
+    def create_history(self, history: History) -> int:
+        self.cursor.execute(create_history_query,
+                            (history.created_at, history.updated_at, history.container_id, history.history_type,
+                             history.comment,
+                             history.file_id))
         new_id = self.cursor.lastrowid
 
         self.conn.commit()
 
         return new_id
 
-    def update
+    # def update
