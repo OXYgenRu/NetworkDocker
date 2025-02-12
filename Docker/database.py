@@ -3,7 +3,7 @@ import sqlite3
 
 migration_query = """
     CREATE TABLE models (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at Text DEFAULT CURRENT_TIMESTAMP,
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
         file_id INTEGER DEFAULT NULL,
@@ -13,7 +13,7 @@ migration_query = """
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE 
     );
     CREATE TABLE optimizers(  
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        optimizer_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at Text DEFAULT CURRENT_TIMESTAMP,
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
         file_id INTEGER DEFAULT NULL,
@@ -22,7 +22,7 @@ migration_query = """
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE 
     );
     CREATE TABLE containers(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        container_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at Text DEFAULT CURRENT_TIMESTAMP,
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
         dataset_id INTEGER  DEFAULT NULL,
@@ -36,21 +36,21 @@ migration_query = """
         FOREIGN KEY (dataset_id) REFERENCES files(id) ON DELETE CASCADE
     );
     CREATE TABLE history(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         container_id INTEGER DEFAULT NULL,
-        type TEXT,
+        history_type TEXT,
         comment TEXT DEFAULT '',
         file_id INTEGER DEFAULT NULL,
         FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE CASCADE,
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE 
     );
     CREATE TABLE files(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        files_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at Text DEFAULT CURRENT_TIMESTAMP,
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
-        type TEXT DEFAULT '',
+        file_type TEXT DEFAULT '',
         comment TEXT DEFAULT '',
         path TEXT DEFAULT ''
     )
@@ -62,7 +62,7 @@ create_container_query = """
 """
 
 create_file_query = """
-    INSERT INTO files (created_at, updated_at, type, comment, path) VALUES (?, ?, ?, ?, ?)
+    INSERT INTO files (created_at, updated_at, file_type, comment, path) VALUES (?, ?, ?, ?, ?)
 """
 create_model_query = """
     INSERT INTO models (created_at, updated_at, file_id, was_trained, sequential, code) VALUES (?, ?, ?, ?, ?, ?)
@@ -72,28 +72,48 @@ create_optimizer_query = """
 """
 
 create_history_query = """
-    INSERT INTO history (created_at, updated_at, container_id, type, comment, file_id) VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO history (created_at, updated_at, container_id, history_type, comment, file_id) VALUES (?, ?, ?, ?, ?, ?)
 """
 
 update_container_query = """
     UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizers_id=?,normalise_dataset=?,
-    name=?,comment=? WHERE id=?
+    name=?,comment=? WHERE container_id=?
 """
 
 update_file_query = """
-    UPDATE files SET updated_at=?,type=?,comment=?,path=? WHERE id=?
+    UPDATE files SET updated_at=?,type=?,comment=?,path=? WHERE file_id=?
 """
 
 update_model_query = """
-    UPDATE models SET updated_at=?,file_id=?,was_trained=?,sequential=?,code=? WHERE id=?
+    UPDATE models SET updated_at=?,file_id=?,was_trained=?,sequential=?,code=? WHERE model_id=?
 """
 
 update_optimizer_query = """
-    UPDATE optimizers SET updated_at=?,file_id=?,was_trained=?,code=? WHERE id = ?
+    UPDATE optimizers SET updated_at=?,file_id=?,was_trained=?,code=? WHERE optimizer_id = ?
 """
 
 update_history_query = """
-    UPDATE history SET updated_at=?,container_id=?,type=?,comment=?,file_id=? WHERE id=?
+    UPDATE history SET updated_at=?,container_id=?,type=?,comment=?,file_id=? WHERE history_id=?
+"""
+
+read_container_query = """
+    SELECT * FROM containers WHERE container_id=?
+"""
+
+read_container_query = """
+    SELECT * FROM files WHERE file_id=?
+"""
+
+read_container_query = """
+    SELECT * FROM models WHERE model_id=?
+"""
+
+read_container_query = """
+    SELECT * FROM optimizers WHERE optimizer_id=?
+"""
+
+read_container_query = """
+    SELECT * FROM history WHERE history_id=?
 """
 
 
@@ -222,4 +242,67 @@ class DB:
 
         return new_id
 
-    # def update
+    def update_container(self, container: Container):
+        self.cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
+                                                     container.optimizers_id, container.normalise_dataset,
+                                                     container.name, container.comment))
+        self.conn.commit()
+
+    def update_file(self, file: File):
+        self.cursor.execute(update_file_query, (file.updated_at, file.file_type, file.comment, file.path))
+
+        self.conn.commit()
+
+    def update_model(self, model: Model):
+        self.cursor.execute(update_model_query,
+                            (model.updated_at, model.file_id, model.was_trained, model.sequential, model.code))
+        self.conn.commit()
+
+    def update_optimizer(self, optimizer: Optimizer):
+        self.cursor.execute(update_optimizer_query,
+                            (optimizer.updated_at, optimizer.file_id, optimizer.was_trained, optimizer.code))
+        self.conn.commit()
+
+    def update_history(self, history: History):
+        self.cursor.execute(update_history_query, (
+            history.updated_at, history.container_id, history.history_type, history.comment, history.file_id))
+
+    def read_container(self, container_id) -> Container:
+        self.cursor.execute(read_container_query, (container_id,))
+        query_result = self.cursor.fetchone()
+
+        container = Container(**query_result)
+
+        return container
+
+    def read_file(self, file_id) -> File:
+        self.cursor.execute(read_container_query, (file_id,))
+        query_result = self.cursor.fetchone()
+
+        file = File(**query_result)
+
+        return file
+
+    def read_model(self, model_id) -> Model:
+        self.cursor.execute(read_container_query, (model_id,))
+        query_result = self.cursor.fetchone()
+
+        model = Model(**query_result)
+
+        return model
+
+    def read_optimizer(self, optimizer_id) -> Optimizer:
+        self.cursor.execute(read_container_query, (optimizer_id,))
+        query_result = self.cursor.fetchone()
+
+        optimizer = Optimizer(**query_result)
+
+        return optimizer
+
+    def read_history(self, history_id) -> History:
+        self.cursor.execute(read_container_query, (history_id,))
+        query_result = self.cursor.fetchone()
+
+        history = History(**query_result)
+
+        return history
