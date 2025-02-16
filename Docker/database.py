@@ -27,12 +27,12 @@ migration_query = """
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
         dataset_id INTEGER  DEFAULT NULL,
         model_id INTEGER  DEFAULT NULL,
-        optimizers_id INTEGER  DEFAULT NULL,
+        optimizer_id INTEGER  DEFAULT NULL,
         normalise_dataset BLOB DEFAULT FALSE,
         name TEXT,
         comment TEXT DEFAULT '',
         FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
-        FOREIGN KEY (optimizers_id) REFERENCES optimizers(id) ON DELETE CASCADE,
+        FOREIGN KEY (optimizer_id) REFERENCES optimizers(id) ON DELETE CASCADE,
         FOREIGN KEY (dataset_id) REFERENCES files(id) ON DELETE CASCADE
     );
     CREATE TABLE history(
@@ -40,6 +40,8 @@ migration_query = """
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         container_id INTEGER DEFAULT NULL,
+        model_id INTEGER DEFAULT NULL,
+        optimizer_id INTEGER DEFAULT NULL,
         history_type TEXT,
         comment TEXT DEFAULT '',
         file_id INTEGER DEFAULT NULL,
@@ -47,7 +49,7 @@ migration_query = """
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE 
     );
     CREATE TABLE files(
-        files_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at Text DEFAULT CURRENT_TIMESTAMP,
         updated_at Text DEFAULT CURRENT_TIMESTAMP,
         file_type TEXT DEFAULT '',
@@ -57,7 +59,7 @@ migration_query = """
 """
 
 create_container_query = """
-    INSERT INTO containers (created_at, updated_at, dataset_id, model_id, optimizers_id, normalise_dataset, name, comment)
+    INSERT INTO containers (created_at, updated_at, dataset_id, model_id, optimizer_id, normalise_dataset, name, comment)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
 
@@ -72,16 +74,17 @@ create_optimizer_query = """
 """
 
 create_history_query = """
-    INSERT INTO history (created_at, updated_at, container_id, history_type, comment, file_id) VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO history (created_at, updated_at, container_id,model_id,optimizer_id, history_type, comment, file_id) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 update_container_query = """
-    UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizers_id=?,normalise_dataset=?,
+    UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizer_id=?,normalise_dataset=?,
     name=?,comment=? WHERE container_id=?
 """
 
 update_file_query = """
-    UPDATE files SET updated_at=?,type=?,comment=?,path=? WHERE file_id=?
+    UPDATE files SET updated_at=?,file_type=?,comment=?,path=? WHERE file_id=?
 """
 
 update_model_query = """
@@ -93,7 +96,7 @@ update_optimizer_query = """
 """
 
 update_history_query = """
-    UPDATE history SET updated_at=?,container_id=?,type=?,comment=?,file_id=? WHERE history_id=?
+    UPDATE history SET updated_at=?,container_id=?,model_id=?,optimizer_id=?,type=?,comment=?,file_id=? WHERE history_id=?
 """
 
 read_container_query = """
@@ -116,16 +119,24 @@ read_container_query = """
     SELECT * FROM history WHERE history_id=?
 """
 
+check_model_id_query = """
+    SELECT * FROM containers WHERE model_id=?
+"""
+
+check_optimizer_id_query = """
+    SELECT * FROM containers WHERE optimizer_id=?
+"""
+
 
 class Container:
     def __init__(self, container_id=None, created_at=None, updated_at=None, dataset_id=None, model_id=None,
-                 optimizers_id=None, normalise_dataset=None, name=None, comment=None):
+                 optimizer_id=None, normalise_dataset=None, name=None, comment=None):
         self.container_id = container_id
         self.created_at = created_at
         self.updated_at = updated_at
         self.dataset_id = dataset_id
         self.model_id = model_id
-        self.optimizers_id = optimizers_id
+        self.optimizer_id = optimizer_id
         self.normalise_dataset = normalise_dataset
         self.name = name
         self.comment = comment
@@ -164,12 +175,15 @@ class Optimizer:
 
 
 class History:
-    def __init__(self, history_id=None, created_at=None, updated_at=None, container_id=None, history_type=None,
+    def __init__(self, history_id=None, created_at=None, updated_at=None, container_id=None, model_id=None,
+                 optimizer_id=None, history_type=None,
                  comment=None, file_id=None):
         self.history_id = history_id
         self.created_at = created_at
         self.updated_at = updated_at
         self.container_id = container_id
+        self.model_id = model_id
+        self.optimizer_id = optimizer_id
         self.history_type = history_type
         self.comment = comment
         self.file_id = file_id
@@ -189,7 +203,7 @@ class DB:
 
         self.cursor.execute(create_container_query,
                             (container.created_at, container.updated_at, container.dataset_id, container.model_id,
-                             container.optimizers_id,
+                             container.optimizer_id,
                              container.normalise_dataset, container.name, container.comment))
         new_id = self.cursor.lastrowid
 
@@ -233,7 +247,8 @@ class DB:
 
     def create_history(self, history: History) -> int:
         self.cursor.execute(create_history_query,
-                            (history.created_at, history.updated_at, history.container_id, history.history_type,
+                            (history.created_at, history.updated_at, history.container_id, history.model_id,
+                             history.optimizer_id, history.history_type,
                              history.comment,
                              history.file_id))
         new_id = self.cursor.lastrowid
@@ -244,28 +259,33 @@ class DB:
 
     def update_container(self, container: Container):
         self.cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
-                                                     container.optimizers_id, container.normalise_dataset,
+                                                     container.optimizer_id, container.normalise_dataset,
                                                      container.name, container.comment))
         self.conn.commit()
 
     def update_file(self, file: File):
-        self.cursor.execute(update_file_query, (file.updated_at, file.file_type, file.comment, file.path))
+        self.cursor.execute(update_file_query,
+                            (file.updated_at, file.file_type, file.comment, file.path, file.file_id))
 
         self.conn.commit()
 
     def update_model(self, model: Model):
         self.cursor.execute(update_model_query,
-                            (model.updated_at, model.file_id, model.was_trained, model.sequential, model.code))
+                            (model.updated_at, model.file_id, model.was_trained, model.sequential, model.code,
+                             model.model_id))
         self.conn.commit()
 
     def update_optimizer(self, optimizer: Optimizer):
         self.cursor.execute(update_optimizer_query,
-                            (optimizer.updated_at, optimizer.file_id, optimizer.was_trained, optimizer.code))
+                            (optimizer.updated_at, optimizer.file_id, optimizer.was_trained, optimizer.code,
+                             optimizer.optimizer_id))
         self.conn.commit()
 
     def update_history(self, history: History):
         self.cursor.execute(update_history_query, (
-            history.updated_at, history.container_id, history.history_type, history.comment, history.file_id))
+            history.updated_at, history.container_id, history.model_id, history.optimizer_id, history.history_type,
+            history.comment, history.file_id,
+            history.history_id))
 
     def read_container(self, container_id) -> Container:
         self.cursor.execute(read_container_query, (container_id,))
@@ -306,3 +326,15 @@ class DB:
         history = History(**query_result)
 
         return history
+
+    def check_model_id(self, model_id):
+        self.cursor.execute(check_model_id_query, (model_id,))
+        query_result = self.cursor.fetchall()
+
+        return len(query_result) > 0
+
+    def check_optimizer_id(self, optimizer_id):
+        self.cursor.execute(check_optimizer_id_query, (optimizer_id,))
+        query_result = self.cursor.fetchall()
+
+        return len(query_result) > 0
