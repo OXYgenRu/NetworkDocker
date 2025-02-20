@@ -367,7 +367,18 @@ class UseCase:
             return None
         return container
 
-    def update_model(self, model_id: int):
+    def update_model(self, model_id: int, file_id: int, was_trained: bool, sequential: bool, code: str):
+        try:
+            self.db_repository.begin_transaction()
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            model = self.db_repository.read_model(model_id)
+
+            old_model_str = model.__str__()
+
+            model.updated_at = now_time
+            model.file_id = file_id
+            model
 
     def update_container(self, container_id: int, dataset_id: int, model_id: int, optimizer_id: int,
                          normalise_dataset: bool, name: str, comment: str):
@@ -377,7 +388,7 @@ class UseCase:
 
             container = self.db_repository.read_container(container_id)
 
-            old_container = container.__str__()
+            old_container_str = container.__str__()
 
             container.updated_at = now_time
             container.dataset_id = dataset_id
@@ -389,7 +400,7 @@ class UseCase:
 
             self.db_repository.update_container(container)
 
-            comment = f"{old_container}\n{container.__str__()}"
+            comment = f"{old_container_str}\n{container.__str__()}"
 
             self.db_repository.create_history(
                 History(created_at=now_time, updated_at=now_time, container_id=container_id,
