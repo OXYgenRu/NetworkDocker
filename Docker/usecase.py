@@ -367,6 +367,8 @@ class UseCase:
             return None
         return container
 
+    def update_model(self, model_id: int):
+
     def update_container(self, container_id: int, dataset_id: int, model_id: int, optimizer_id: int,
                          normalise_dataset: bool, name: str, comment: str):
         try:
@@ -404,4 +406,5 @@ class UseCase:
             self.db_repository.commit_transaction()
             print(f"Container updating Error: {e}")
             return None
+
     # def run_container(self, container_id: int):

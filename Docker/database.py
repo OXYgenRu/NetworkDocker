@@ -127,6 +127,26 @@ check_optimizer_id_query = """
     SELECT * FROM containers WHERE optimizer_id=?
 """
 
+read_models_query = """
+    SELECT * FROM models
+"""
+
+read_optimizers_query = """
+    SELECT * FROM optimizers
+"""
+
+read_containers_query = """
+    SELECT * FROM containers
+"""
+
+read_files_query = """
+    SELECT * FROM files
+"""
+
+read_histories_query = """
+    SELECT * FROM history
+"""
+
 
 class Container:
     def __init__(self, container_id=None, created_at=None, updated_at=None, dataset_id=None, model_id=None,
@@ -342,3 +362,60 @@ class DB:
         query_result = self.cursor.fetchall()
 
         return len(query_result) > 0
+
+    def read_containers(self):
+        self.cursor.execute(read_containers_query)
+        query_result = self.cursor.fetchall()
+
+        result: list[Container] = []
+
+        for row in query_result:
+            result.append(
+                Container(container_id=row[0], created_at=row[1], updated_at=row[2],
+                          dataset_id=row[3], model_id=row[4], optimizer_id=row[5],
+                          normalise_dataset=row[6], name=row[7], comment=row[8]))
+
+    def read_models(self):
+        self.cursor.execute(read_models_query)
+        query_result = self.cursor.fetchall()
+
+        result: list[Model] = []
+
+        for row in query_result:
+            result.append(Model(model_id=row[0], created_at=row[1], updated_at=row[2],
+                                file_id=row[3], was_trained=row[4], sequential=row[5],
+                                code=row[6]))
+
+    def read_optimizers(self):
+        self.cursor.execute(read_optimizers_query)
+        query_result = self.cursor.fetchall()
+
+        result: list[Optimizer] = []
+
+        for row in query_result:
+            result.append(
+                Optimizer(optimizer_id=row[0], created_at=row[1], updated_at=row[2],
+                          file_id=row[3], was_trained=row[4], code=row[5]))
+
+    def read_files(self):
+        self.cursor.execute(read_files_query)
+        query_result = self.cursor.fetchall()
+
+        result: list[File] = []
+
+        for row in query_result:
+            result.append(
+                File(file_id=row[0], created_at=row[1], updated_at=row[2],
+                     file_type=row[3], comment=row[4], path=row[5]))
+
+    def read_histories(self):
+        self.cursor.execute(read_histories_query)
+        query_result = self.cursor.fetchall()
+
+        result: list[History] = []
+
+        for row in query_result:
+            result.append(
+                History(history_id=row[0], created_at=row[1], updated_at=row[2],
+                        container_id=row[3], model_id=row[4], optimizer_id=row[5],
+                        history_type=row[6], comment=row[7], file_id=row[8]))
