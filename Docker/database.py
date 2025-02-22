@@ -1,5 +1,6 @@
 import datetime
 import sqlite3
+from flask import g
 
 migration_query = """
     CREATE TABLE models (
@@ -314,114 +315,137 @@ class History:
 class DB:
     def __init__(self):
         self.conn = sqlite3.connect("local/database.db")
-        self.cursor = self.conn.cursor()
 
-    def create_tables(self):
-        self.cursor.executescript(migration_query)
+    def get_connection(self):
+        if 'db_conn' not in g:
+            g.db_conn = sqlite3.connect("local/database.db")
+        return g.db_conn
+
+    def close_connection(self):
+        conn = g.pop('db_conn', None)
+        if conn:
+            conn.close()
+
+    def create_tables(self, conn):
+        cursor = conn.cursor()
+        cursor.executescript(migration_query)
         self.conn.commit()
 
-    def begin_transaction(self):
-        self.conn.execute("BEGIN;")
+    def begin_transaction(self, conn):
+        conn.execute("BEGIN;")
 
-    def commit_transaction(self):
-        self.conn.commit()
+    def commit_transaction(self, conn):
+        conn.commit()
 
-    def rollback_transaction(self):
-        self.conn.rollback()
+    def rollback_transaction(self, conn):
+        conn.rollback()
 
-    def create_container(self, container: Container):
-        self.cursor.execute(create_container_query,
-                            (container.created_at, container.updated_at, container.dataset_id, container.model_id,
-                             container.optimizer_id,
-                             container.normalise_dataset, container.name, container.comment))
-        new_id = self.cursor.lastrowid
+    def create_container(self, container: Container, conn):
+        cursor = conn.cursor()
+        cursor.execute(create_container_query,
+                       (container.created_at, container.updated_at, container.dataset_id, container.model_id,
+                        container.optimizer_id,
+                        container.normalise_dataset, container.name, container.comment))
+        new_id = cursor.lastrowid
 
         return new_id
 
-    def create_file(self, file: File) -> int:
+    def create_file(self, file: File, conn) -> int:
+        cursor = conn.cursor()
         # now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         # path = f"{now_time}.{file.file_type}.txt"
 
-        self.cursor.execute(create_file_query,
-                            (file.created_at, file.updated_at, file.file_type, file.comment, file.path))
-        new_id = self.cursor.lastrowid
+        cursor.execute(create_file_query,
+                       (file.created_at, file.updated_at, file.file_type, file.comment, file.path))
+        new_id = cursor.lastrowid
 
         return new_id
 
-    def create_model(self, model: Model) -> int:
+    def create_model(self, model: Model, conn) -> int:
+        cursor = conn.cursor()
         # now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-        self.cursor.execute(create_model_query,
-                            (model.created_at, model.updated_at, model.file_id, model.was_trained, model.sequential,
-                             model.code))
-        new_id = self.cursor.lastrowid
+        cursor.execute(create_model_query,
+                       (model.created_at, model.updated_at, model.file_id, model.was_trained, model.sequential,
+                        model.code))
+        new_id = cursor.lastrowid
 
         return new_id
 
-    def create_optimizer(self, optimizer: Optimizer) -> int:
-        self.cursor.execute(create_optimizer_query,
-                            (optimizer.created_at, optimizer.updated_at, optimizer.file_id, optimizer.was_trained,
-                             optimizer.code))
-        new_id = self.cursor.lastrowid
+    def create_optimizer(self, optimizer: Optimizer, conn) -> int:
+        cursor = conn.cursor()
+        cursor.execute(create_optimizer_query,
+                       (optimizer.created_at, optimizer.updated_at, optimizer.file_id, optimizer.was_trained,
+                        optimizer.code))
+        new_id = cursor.lastrowid
 
         return new_id
 
-    def create_history(self, history: History) -> int:
-        self.cursor.execute(create_history_query,
-                            (history.created_at, history.updated_at, history.container_id, history.model_id,
-                             history.optimizer_id, history.history_type,
-                             history.comment,
-                             history.file_id))
-        new_id = self.cursor.lastrowid
+    def create_history(self, history: History, conn) -> int:
+        cursor = conn.cursor()
+        cursor.execute(create_history_query,
+                       (history.created_at, history.updated_at, history.container_id, history.model_id,
+                        history.optimizer_id, history.history_type,
+                        history.comment,
+                        history.file_id))
+        new_id = cursor.lastrowid
 
         return new_id
 
-    def update_container(self, container: Container):
-        self.cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
-                                                     container.optimizer_id, container.normalise_dataset,
-                                                     container.name, container.comment, container.container_id))
+    def update_container(self, container: Container, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
+                                                container.optimizer_id, container.normalise_dataset,
+                                                container.name, container.comment, container.container_id))
 
-    def update_file(self, file: File):
-        self.cursor.execute(update_file_query,
-                            (file.updated_at, file.file_type, file.comment, file.path, file.file_id))
+    def update_file(self, file: File, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_file_query,
+                       (file.updated_at, file.file_type, file.comment, file.path, file.file_id))
 
-    def update_model(self, model: Model):
-        self.cursor.execute(update_model_query,
-                            (model.updated_at, model.file_id, model.was_trained, model.sequential, model.code,
-                             model.model_id))
+    def update_model(self, model: Model, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_model_query,
+                       (model.updated_at, model.file_id, model.was_trained, model.sequential, model.code,
+                        model.model_id))
 
-    def update_optimizer(self, optimizer: Optimizer):
-        self.cursor.execute(update_optimizer_query,
-                            (optimizer.updated_at, optimizer.file_id, optimizer.was_trained, optimizer.code,
-                             optimizer.optimizer_id))
+    def update_optimizer(self, optimizer: Optimizer, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_optimizer_query,
+                       (optimizer.updated_at, optimizer.file_id, optimizer.was_trained, optimizer.code,
+                        optimizer.optimizer_id))
 
-    def update_history(self, history: History):
-        self.cursor.execute(update_history_query, (
+    def update_history(self, history: History, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_history_query, (
             history.updated_at, history.container_id, history.model_id, history.optimizer_id, history.history_type,
             history.comment, history.file_id,
             history.history_id))
 
-    def read_container(self, container_id) -> Container:
-        self.cursor.execute(read_container_query, (container_id,))
-        query_result = self.cursor.fetchone()
+    def read_container(self, container_id, conn) -> Container:
+        cursor = conn.cursor()
+        cursor.execute(read_container_query, (container_id,))
+        query_result = cursor.fetchone()
         container = Container(container_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                               dataset_id=query_result[3], model_id=query_result[4], optimizer_id=query_result[5],
                               normalise_dataset=query_result[6], name=query_result[7], comment=query_result[8])
 
         return container
 
-    def read_file(self, file_id) -> File:
-        self.cursor.execute(read_file_query, (file_id,))
-        query_result = self.cursor.fetchone()
+    def read_file(self, file_id, conn) -> File:
+        cursor = conn.cursor()
+        cursor.execute(read_file_query, (file_id,))
+        query_result = cursor.fetchone()
 
         file = File(file_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                     file_type=query_result[3], comment=query_result[4], path=query_result[5])
 
         return file
 
-    def read_model(self, model_id) -> Model:
-        self.cursor.execute(read_model_query, (model_id,))
-        query_result = self.cursor.fetchone()
+    def read_model(self, model_id, conn) -> Model:
+        cursor = conn.cursor()
+        cursor.execute(read_model_query, (model_id,))
+        query_result = cursor.fetchone()
 
         model = Model(model_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                       file_id=query_result[3], was_trained=query_result[4], sequential=query_result[5],
@@ -429,18 +453,20 @@ class DB:
 
         return model
 
-    def read_optimizer(self, optimizer_id) -> Optimizer:
-        self.cursor.execute(read_optimizer_query, (optimizer_id,))
-        query_result = self.cursor.fetchone()
+    def read_optimizer(self, optimizer_id, conn) -> Optimizer:
+        cursor = conn.cursor()
+        cursor.execute(read_optimizer_query, (optimizer_id,))
+        query_result = cursor.fetchone()
 
         optimizer = Optimizer(optimizer_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                               file_id=query_result[3], was_trained=query_result[4], code=query_result[5])
 
         return optimizer
 
-    def read_history(self, history_id) -> History:
-        self.cursor.execute(read_history_query, (history_id,))
-        query_result = self.cursor.fetchone()
+    def read_history(self, history_id, conn) -> History:
+        cursor = conn.cursor()
+        cursor.execute(read_history_query, (history_id,))
+        query_result = cursor.fetchone()
 
         history = History(history_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                           container_id=query_result[3], model_id=query_result[4], optimizer_id=query_result[5],
@@ -448,21 +474,24 @@ class DB:
 
         return history
 
-    def check_model_id(self, model_id):
-        self.cursor.execute(check_model_id_query, (model_id,))
-        query_result = self.cursor.fetchall()
+    def check_model_id(self, model_id, conn):
+        cursor = conn.cursor()
+        cursor.execute(check_model_id_query, (model_id,))
+        query_result = cursor.fetchall()
 
         return len(query_result) > 0
 
-    def check_optimizer_id(self, optimizer_id):
-        self.cursor.execute(check_optimizer_id_query, (optimizer_id,))
-        query_result = self.cursor.fetchall()
+    def check_optimizer_id(self, optimizer_id, conn):
+        cursor = conn.cursor()
+        cursor.execute(check_optimizer_id_query, (optimizer_id,))
+        query_result = cursor.fetchall()
 
         return len(query_result) > 0
 
-    def read_containers(self):
-        self.cursor.execute(read_containers_query)
-        query_result = self.cursor.fetchall()
+    def read_containers(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_containers_query)
+        query_result = cursor.fetchall()
 
         result: list[Container] = []
 
@@ -472,9 +501,10 @@ class DB:
                           dataset_id=row[3], model_id=row[4], optimizer_id=row[5],
                           normalise_dataset=row[6], name=row[7], comment=row[8]))
 
-    def read_models(self):
-        self.cursor.execute(read_models_query)
-        query_result = self.cursor.fetchall()
+    def read_models(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_models_query)
+        query_result = cursor.fetchall()
 
         result: list[Model] = []
 
@@ -483,9 +513,10 @@ class DB:
                                 file_id=row[3], was_trained=row[4], sequential=row[5],
                                 code=row[6]))
 
-    def read_optimizers(self):
-        self.cursor.execute(read_optimizers_query)
-        query_result = self.cursor.fetchall()
+    def read_optimizers(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_optimizers_query)
+        query_result = cursor.fetchall()
 
         result: list[Optimizer] = []
 
@@ -494,9 +525,10 @@ class DB:
                 Optimizer(optimizer_id=row[0], created_at=row[1], updated_at=row[2],
                           file_id=row[3], was_trained=row[4], code=row[5]))
 
-    def read_files(self):
-        self.cursor.execute(read_files_query)
-        query_result = self.cursor.fetchall()
+    def read_files(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_files_query)
+        query_result = cursor.fetchall()
 
         result: list[File] = []
 
@@ -505,9 +537,10 @@ class DB:
                 File(file_id=row[0], created_at=row[1], updated_at=row[2],
                      file_type=row[3], comment=row[4], path=row[5]))
 
-    def read_histories(self):
-        self.cursor.execute(read_histories_query)
-        query_result = self.cursor.fetchall()
+    def read_histories(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_histories_query)
+        query_result = cursor.fetchall()
         result: list[History] = []
 
         for row in query_result:
