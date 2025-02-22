@@ -18,6 +18,9 @@ OPTIMIZER_COPIED = "optimizer_copied"
 CONTAINER_COPIED = "container_copied"
 
 CONTAINER_UPDATED = "container_updated"
+MODEL_UPDATED = "model_updated"
+OPTIMIZER_UPDATED = "optimizer_updated"
+
 ERROR = "error"
 
 
@@ -224,7 +227,7 @@ class UseCase:
 
             self.db_repository.begin_transaction()
             self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
-                                                      comment=f"Model copying Error: {e}"))
+                                                      comment=f"Model copying Error: {e}", model_id=source_model_id))
             self.db_repository.commit_transaction()
             print(f"Model copying Error: {e}")
             return None
@@ -270,7 +273,8 @@ class UseCase:
 
             self.db_repository.begin_transaction()
             self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
-                                                      comment=f"Optimizer copying Error: {e}"))
+                                                      comment=f"Optimizer copying Error: {e}",
+                                                      optimizer_id=source_optimizer_id))
             self.db_repository.commit_transaction()
             print(f"Optimizer copying Error: {e}")
             return None
@@ -361,13 +365,15 @@ class UseCase:
 
             self.db_repository.begin_transaction()
             self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
-                                                      comment=f"Container copying Error: {e}"))
+                                                      comment=f"Container copying Error: {e}",
+                                                      container_id=source_container_id))
             self.db_repository.commit_transaction()
             print(f"Container copying Error: {e}")
             return None
         return container
 
-    def update_model(self, model_id: int, file_id: int, was_trained: bool, sequential: bool, code: str):
+    def update_model(self, model_id: int, file_id: int = None, was_trained: bool = None, sequential: bool = None,
+                     code: str = None):
         try:
             self.db_repository.begin_transaction()
             now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -376,12 +382,66 @@ class UseCase:
 
             old_model_str = model.__str__()
 
-            model.updated_at = now_time
-            model.file_id = file_id
-            model
+            model.update_if_provided(now_time, file_id, was_trained, sequential, code)
 
-    def update_container(self, container_id: int, dataset_id: int, model_id: int, optimizer_id: int,
-                         normalise_dataset: bool, name: str, comment: str):
+            self.db_repository.update_model(model)
+
+            comment = f"{old_model_str}\n{model.__str__()}"
+
+            self.db_repository.create_history(
+                History(created_at=now_time, updated_at=now_time, model_id=model_id, history_type=MODEL_UPDATED,
+                        comment=comment))
+
+            self.db_repository.commit_transaction()
+
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Model updating Error: {e}", model_id=model_id))
+            self.db_repository.commit_transaction()
+            print(f"Model updating Error: {e}")
+
+    def update_optimizer(self, optimizer_id: int, file_id: int = None, was_trained: bool = None, code: str = None):
+        try:
+            self.db_repository.begin_transaction()
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            optimizer = self.db_repository.read_optimizer(optimizer_id)
+
+            old_optimizer_str = optimizer.__str__()
+
+            optimizer.update_if_provided(now_time, file_id, was_trained, code)
+
+            self.db_repository.update_optimizer(optimizer)
+
+            comment = f"{old_optimizer_str}\n{optimizer.__str__()}"
+
+            self.db_repository.create_history(
+                History(created_at=now_time, updated_at=now_time, optimizer_id=optimizer_id,
+                        history_type=OPTIMIZER_UPDATED,
+                        comment=comment))
+
+            self.db_repository.commit_transaction()
+
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Optimizer updating Error: {e}",
+                                                      optimizer_id=optimizer_id))
+            self.db_repository.commit_transaction()
+            print(f"Optimizer updating Error: {e}")
+
+    def update_container(self, container_id: int, dataset_id: int = None, model_id: int = None,
+                         optimizer_id: int = None,
+                         normalise_dataset: bool = None, name: str = None, comment: str = None):
         try:
             self.db_repository.begin_transaction()
             now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -390,13 +450,7 @@ class UseCase:
 
             old_container_str = container.__str__()
 
-            container.updated_at = now_time
-            container.dataset_id = dataset_id
-            container.model_id = model_id
-            container.optimizer_id = optimizer_id
-            container.normalise_dataset = normalise_dataset
-            container.name = name
-            container.comment = comment
+            container.update_if_provided(now_time, dataset_id, model_id, optimizer_id, normalise_dataset, name, comment)
 
             self.db_repository.update_container(container)
 
@@ -413,9 +467,190 @@ class UseCase:
 
             self.db_repository.begin_transaction()
             self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
-                                                      comment=f"Container updating Error: {e}"))
+                                                      comment=f"Container updating Error: {e}",
+                                                      container_id=container_id))
             self.db_repository.commit_transaction()
             print(f"Container updating Error: {e}")
-            return None
 
-    # def run_container(self, container_id: int):
+    def read_container(self, container_id: int) -> Optional[Container]:
+        try:
+            self.db_repository.begin_transaction()
+            container = self.db_repository.read_container(container_id)
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Container reading Error: {e}",
+                                                      container_id=container_id))
+            self.db_repository.commit_transaction()
+            print(f"Container reading Error: {e}")
+            return None
+        return container
+
+    def read_file(self, file_id: int) -> Optional[File]:
+        try:
+            self.db_repository.begin_transaction()
+            file = self.db_repository.read_file(file_id)
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"File reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"File reading Error: {e}")
+            return None
+        return file
+
+    def read_model(self, model_id: int) -> Optional[Model]:
+        try:
+            self.db_repository.begin_transaction()
+            model = self.db_repository.read_model(model_id)
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Model reading Error: {e}", model_id=model_id))
+            self.db_repository.commit_transaction()
+            print(f"Model reading Error: {e}")
+            return None
+        return model
+
+    def read_optimizer(self, optimizer_id: int) -> Optional[Optimizer]:
+        try:
+            self.db_repository.begin_transaction()
+            optimizer = self.db_repository.read_optimizer(optimizer_id)
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Optimizer reading Error: {e}",
+                                                      optimizer_id=optimizer_id))
+            self.db_repository.commit_transaction()
+            print(f"Optimizer reading Error: {e}")
+            return None
+        return optimizer
+
+    def read_history(self, history_id: int) -> Optional[History]:
+        try:
+            self.db_repository.begin_transaction()
+            history = self.db_repository.read_history(history_id)
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"History reading Error: {e}", ))
+            self.db_repository.commit_transaction()
+            print(f"History reading Error: {e}")
+            return None
+        return history
+
+    def read_containers(self):
+        try:
+            self.db_repository.begin_transaction()
+            containers = self.db_repository.read_containers()
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Containers reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"Containers reading Error: {e}")
+            return None
+        return containers
+
+    def read_models(self):
+        try:
+            self.db_repository.begin_transaction()
+            models = self.db_repository.read_models()
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Models reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"Models reading Error: {e}")
+            return None
+        return models
+
+    def read_optimizers(self):
+        try:
+            self.db_repository.begin_transaction()
+            optimizers = self.db_repository.read_optimizers()
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Optimizers reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"Optimizers reading Error: {e}")
+            return None
+        return optimizers
+
+    def read_files(self):
+        try:
+            self.db_repository.begin_transaction()
+            files = self.db_repository.read_files()
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Files reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"Files reading Error: {e}")
+            return None
+        return files
+
+    def read_histories(self):
+        try:
+            self.db_repository.begin_transaction()
+            histories = self.db_repository.read_histories()
+            self.db_repository.commit_transaction()
+        except Exception as e:
+            self.db_repository.rollback_transaction()
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction()
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Histories reading Error: {e}"))
+            self.db_repository.commit_transaction()
+            print(f"Histories reading Error: {e}")
+            return None
+        return histories
+# def run_container(self, container_id: int):

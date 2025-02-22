@@ -183,6 +183,9 @@ class Container:
         if comment is not None:
             self.comment = comment
 
+    def to_dict(self):
+        return self.__dict__
+
 
 class File:
     def __init__(self, file_id=None, created_at=None, updated_at=None, file_type=None, comment=None, path=None):
@@ -207,6 +210,9 @@ class File:
             self.comment = comment
         if path is not None:
             self.path = path
+
+    def to_dict(self):
+        return self.__dict__
 
 
 class Model:
@@ -237,6 +243,9 @@ class Model:
         if code is not None:
             self.code = code
 
+    def to_dict(self):
+        return self.__dict__
+
 
 class Optimizer:
     def __init__(self, optimizer_id=None, created_at=None, updated_at=None, file_id=None, was_trained=None, code=None):
@@ -261,6 +270,9 @@ class Optimizer:
             self.was_trained = was_trained
         if code is not None:
             self.code = code
+
+    def to_dict(self):
+        return self.__dict__
 
 
 class History:
@@ -294,6 +306,9 @@ class History:
             self.comment = comment
         if file_id is not None:
             self.file_id = file_id
+
+    def to_dict(self):
+        return self.__dict__
 
 
 class DB:
