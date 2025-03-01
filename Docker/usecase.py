@@ -1,7 +1,8 @@
 import datetime
 from typing import Optional
 
-from database import DB, Model, File, Optimizer, Container, History
+from database import DB
+from structs import Container, Model, Optimizer, History, File, Session
 import shutil
 import os
 
@@ -13,6 +14,10 @@ def generate_path(file_id, file_type, created_at):
 MODEL_CREATED = "model_created"
 OPTIMIZER_CREATED = "optimizer_created"
 CONTAINER_CREATED = "container_created"
+FILE_CREATED = "file_created"
+SESSION_CREATED = "session_created"
+HISTORY_CREATED = "history_created"
+
 MODEL_COPIED = "model_copied"
 OPTIMIZER_COPIED = "optimizer_copied"
 CONTAINER_COPIED = "container_copied"
@@ -20,6 +25,21 @@ CONTAINER_COPIED = "container_copied"
 CONTAINER_UPDATED = "container_updated"
 MODEL_UPDATED = "model_updated"
 OPTIMIZER_UPDATED = "optimizer_updated"
+SESSION_UPDATED = "session_updated"
+FILE_UPDATED = "file_updated"
+
+CONTAINER_READ = "container_read"
+FILE_READ = "file_read"
+MODEL_READ = "model_read"
+OPTIMIZER_READ = "optimizer_read"
+HISTORY_READ = "history_read"
+SESSION_READ = "session_read"
+CONTAINERS_READ = "containers_read"
+MODELS_READ = "models_read"
+OPTIMIZERS_READ = "optimizers_read"
+FILES_READ = "files_read"
+HISTORIES_READ = "histories_read"
+SESSIONS_READ = "sessions_read"
 
 ERROR = "error"
 
@@ -27,6 +47,25 @@ ERROR = "error"
 class UseCase:
     def __init__(self, db_repository: DB):
         self.db_repository = db_repository
+
+    def create_tables(self):
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_tables(conn)
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Tables Creating Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"Tables Creating Error: {e}")
+            return None
+        return True
 
     def create_model(self, sequential: bool = None, code: str = None) -> Optional[Model]:
         conn = self.db_repository.get_connection()
@@ -195,6 +234,28 @@ class UseCase:
             return None
         return history
 
+    def create_session(self, status=None, file_id=None, epochs=None, reset_progress=None) -> Optional[Session]:
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            session: Session = Session(created_at=now_time, updated_at=now_time, status=status, file_id=file_id,
+                                       epochs=epochs, reset_progress=reset_progress)
+            session.id = self.db_repository.create_session(session, conn)
+            self.db_repository.rollback_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            self.db_repository.begin_transaction(conn)
+
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Session creating Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"Session creating Error: {e}")
+            return None
+        return session
+
     def copy_model(self, source_model_id: int, copy_progress: bool) -> Optional[Model]:
         conn = self.db_repository.get_connection()
         try:
@@ -233,7 +294,8 @@ class UseCase:
 
             self.db_repository.begin_transaction(conn)
             self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
-                                                      comment=f"Model copying Error: {e}", model_id=source_model_id))
+                                                      comment=f"Model copying Error: {e}", model_id=source_model_id),
+                                              conn)
             self.db_repository.commit_transaction(conn)
             print(f"Model copying Error: {e}")
             return None
@@ -413,6 +475,8 @@ class UseCase:
                                                       comment=f"Model updating Error: {e}", model_id=model_id), conn)
             self.db_repository.commit_transaction(conn)
             print(f"Model updating Error: {e}")
+            return None
+        return model
 
     def update_optimizer(self, optimizer_id: int, file_id: int = None, was_trained: bool = None, code: str = None):
         conn = self.db_repository.get_connection()
@@ -448,6 +512,8 @@ class UseCase:
                                                       optimizer_id=optimizer_id), conn)
             self.db_repository.commit_transaction(conn)
             print(f"Optimizer updating Error: {e}")
+            return None
+        return optimizer
 
     def update_container(self, container_id: int, dataset_id: int = None, model_id: int = None,
                          optimizer_id: int = None,
@@ -482,6 +548,74 @@ class UseCase:
                                                       container_id=container_id), conn)
             self.db_repository.commit_transaction(conn)
             print(f"Container updating Error: {e}")
+            return None
+        return container
+
+    def update_file(self, file_id: int, file_type: str, comment: str, path: str):
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            file = self.db_repository.read_file(file_id, conn)
+
+            old_file_str = file.__str__()
+
+            file.update_if_provided(updated_at=now_time, file_type=file_type, comment=comment, path=path)
+
+            self.db_repository.update_file(file, conn)
+
+            comment = f"{old_file_str}\n{file.__str__()}"
+
+            self.db_repository.create_history(
+                History(created_at=now_time, updated_at=now_time,
+                        history_type=FILE_UPDATED, comment=comment), conn)
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"File updating Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"File updating Error: {e}")
+            return None
+        return file
+
+    def update_session(self, session_id: int, status: str, file_id: int, epochs: int, reset_progress: bool):
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            session = self.db_repository.read_session(session_id, conn)
+
+            old_session_str = session.__str__()
+
+            session.update_if_provided(updated_at=now_time, status=status, file_id=file_id, epochs=epochs,
+                                       reset_progress=reset_progress)
+            self.db_repository.update_session(session, conn)
+
+            comment = f"{old_session_str}\n{session.__str__()}"
+
+            self.db_repository.create_history(
+                History(created_at=now_time, updated_at=now_time,
+                        history_type=SESSION_UPDATED, comment=comment), conn)
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Session updating Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"Session updating Error: {e}")
+            return None
+        return session
 
     def read_container(self, container_id: int) -> Optional[Container]:
         conn = self.db_repository.get_connection()
@@ -580,6 +714,25 @@ class UseCase:
             return None
         return history
 
+    def read_session(self, session_id: int) -> Optional[Session]:
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            session = self.db_repository.read_session(session_id, conn)
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Session reading Error: {e}", ), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"Session reading Error: {e}")
+            return None
+        return session
+
     def read_containers(self):
         conn = self.db_repository.get_connection()
         try:
@@ -674,4 +827,23 @@ class UseCase:
             print(f"Histories reading Error: {e}")
             return None
         return histories
+
+    def read_sessions(self):
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            sessions = self.db_repository.read_sessions(conn)
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"Sessions reading Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"Sessions reading Error: {e}")
+            return None
+        return sessions
 # def run_container(self, container_id: int):

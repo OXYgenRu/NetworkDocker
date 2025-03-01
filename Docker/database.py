@@ -1,6 +1,7 @@
 import datetime
 import sqlite3
 from flask import g
+from structs import Container, Model, Optimizer, History, File, Session
 
 migration_query = """
     CREATE TABLE models (
@@ -56,6 +57,15 @@ migration_query = """
         file_type TEXT DEFAULT '',
         comment TEXT DEFAULT '',
         path TEXT DEFAULT ''
+    );
+    CREATE TABLE sessions(
+        session_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT '',
+        file_id INTEGER DEFAULT NULL,
+        epochs INTEGER DEFAULT NULL,
+        reset_progress BLOB DEFAULT FALSE
     )
 """
 
@@ -77,6 +87,10 @@ create_optimizer_query = """
 create_history_query = """
     INSERT INTO history (created_at, updated_at, container_id,model_id,optimizer_id, history_type, comment, file_id) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"""
+create_session_query = """
+    INSERT INTO sessions (created_at,updated_at,status,file_id,epochs,reset_progress) 
+    VALUES (?,?,?,?,?,?)
 """
 
 update_container_query = """
@@ -100,6 +114,10 @@ update_history_query = """
     UPDATE history SET updated_at=?,container_id=?,model_id=?,optimizer_id=?,type=?,comment=?,file_id=? WHERE history_id=?
 """
 
+update_sessions_query = """
+    UPDATE sessions SET updated_at=?,status=?,file_id=?,epochs=?,reset_progress=? WHERE session_id=?
+"""
+
 read_container_query = """
     SELECT * FROM containers WHERE container_id=?
 """
@@ -118,6 +136,9 @@ read_optimizer_query = """
 
 read_history_query = """
     SELECT * FROM history WHERE history_id=?
+"""
+read_session_query = """
+    SELECT * FROM sessions WHERE session_id=?
 """
 
 check_model_id_query = """
@@ -148,168 +169,9 @@ read_histories_query = """
     SELECT * FROM history
 """
 
-
-class Container:
-    def __init__(self, container_id=None, created_at=None, updated_at=None, dataset_id=None, model_id=None,
-                 optimizer_id=None, normalise_dataset=None, name=None, comment=None):
-        self.container_id = container_id
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.dataset_id = dataset_id
-        self.model_id = model_id
-        self.optimizer_id = optimizer_id
-        self.normalise_dataset = normalise_dataset
-        self.name = name
-        self.comment = comment
-
-    def __str__(self):
-        return (
-            f"container_id {self.container_id} | updated_at {self.updated_at} | dataset_id {self.dataset_id} | model_id {self.model_id}"
-            f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | name {self.name} | comment {self.comment}")
-
-    def update_if_provided(self, updated_at=None, dataset_id=None, model_id=None, optimizer_id=None,
-                           normalise_dataset=None, name=None, comment=None):
-        if updated_at is not None:
-            self.updated_at = updated_at
-        if dataset_id is not None:
-            self.dataset_id = dataset_id
-        if model_id is not None:
-            self.model_id = model_id
-        if optimizer_id is not None:
-            self.optimizer_id = optimizer_id
-        if normalise_dataset is not None:
-            self.normalise_dataset = normalise_dataset
-        if name is not None:
-            self.name = name
-        if comment is not None:
-            self.comment = comment
-
-    def to_dict(self):
-        return self.__dict__
-
-
-class File:
-    def __init__(self, file_id=None, created_at=None, updated_at=None, file_type=None, comment=None, path=None):
-        self.file_id = file_id
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.file_type = file_type
-        self.comment = comment
-        self.path = path
-
-    def __str__(self):
-        return (
-            f"file_id {self.file_id} | updated_at {self.updated_at} | file_type {self.file_type} | comment {self.comment}"
-            f" | path {self.path}")
-
-    def update_if_provided(self, updated_at=None, file_type=None, comment=None, path=None):
-        if updated_at is not None:
-            self.updated_at = updated_at
-        if file_type is not None:
-            self.file_type = file_type
-        if comment is not None:
-            self.comment = comment
-        if path is not None:
-            self.path = path
-
-    def to_dict(self):
-        return self.__dict__
-
-
-class Model:
-    def __init__(self, model_id=None, created_at=None, updated_at=None, file_id=None, was_trained=None, sequential=None,
-                 code=None):
-        self.model_id = model_id
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.file_id = file_id
-        self.was_trained = was_trained
-        self.sequential = sequential
-        self.code = code
-
-    def __str__(self):
-        return (
-            f"model_id {self.model_id} | updated_at {self.updated_at} | file_id {self.file_id} | was_trained {self.was_trained}"
-            f" | sequential {self.sequential} |  code {self.code}")
-
-    def update_if_provided(self, updated_at=None, file_id=None, was_trained=None, sequential=None, code=None):
-        if updated_at is not None:
-            self.updated_at = updated_at
-        if file_id is not None:
-            self.file_id = file_id
-        if was_trained is not None:
-            self.was_trained = was_trained
-        if sequential is not None:
-            self.sequential = sequential
-        if code is not None:
-            self.code = code
-
-    def to_dict(self):
-        return self.__dict__
-
-
-class Optimizer:
-    def __init__(self, optimizer_id=None, created_at=None, updated_at=None, file_id=None, was_trained=None, code=None):
-        self.optimizer_id = optimizer_id
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.file_id = file_id
-        self.was_trained = was_trained
-        self.code = code
-
-    def __str__(self):
-        return (
-            f"optimizer_id {self.optimizer_id} | updated_at {self.updated_at} | file_id {self.file_id} | was_trained {self.was_trained}"
-            f" | code {self.code}")
-
-    def update_if_provided(self, updated_at=None, file_id=None, was_trained=None, code=None):
-        if updated_at is not None:
-            self.updated_at = updated_at
-        if file_id is not None:
-            self.file_id = file_id
-        if was_trained is not None:
-            self.was_trained = was_trained
-        if code is not None:
-            self.code = code
-
-    def to_dict(self):
-        return self.__dict__
-
-
-class History:
-    def __init__(self, history_id=None, created_at=None, updated_at=None, container_id=None, model_id=None,
-                 optimizer_id=None, history_type=None,
-                 comment=None, file_id=None):
-        self.history_id = history_id
-        self.created_at = created_at
-        self.updated_at = updated_at
-        self.container_id = container_id
-        self.model_id = model_id
-        self.optimizer_id = optimizer_id
-        self.history_type = history_type
-        self.comment = comment
-        self.file_id = file_id
-
-    def update_if_provided(self, updated_at=None, container_id=None, model_id=None,
-                           optimizer_id=None, history_type=None,
-                           comment=None, file_id=None):
-        if updated_at is not None:
-            self.updated_at = updated_at
-        if container_id is not None:
-            self.container_id = container_id
-        if model_id is not None:
-            self.model_id = model_id
-        if optimizer_id is not None:
-            self.optimizer_id = optimizer_id
-        if history_type is not None:
-            self.history_type = history_type
-        if comment is not None:
-            self.comment = comment
-        if file_id is not None:
-            self.file_id = file_id
-
-    def to_dict(self):
-        return self.__dict__
+read_sessions_query = """
+    SELECT * FROM sessions
+"""
 
 
 class DB:
@@ -329,8 +191,6 @@ class DB:
     def create_tables(self, conn):
         cursor = conn.cursor()
         cursor.executescript(migration_query)
-        self.conn.commit()
-
     def begin_transaction(self, conn):
         conn.execute("BEGIN;")
 
@@ -392,6 +252,13 @@ class DB:
 
         return new_id
 
+    def create_session(self, session: Session, conn) -> int:
+        cursor = conn.cursor()
+        cursor.execute(create_session_query, session.created_at, session.updated_at, session.status, session.file_id,
+                       session.epochs, session.reset_progress)
+        new_id = cursor.lastrowid
+        return new_id
+
     def update_container(self, container: Container, conn):
         cursor = conn.cursor()
         cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
@@ -421,6 +288,12 @@ class DB:
             history.updated_at, history.container_id, history.model_id, history.optimizer_id, history.history_type,
             history.comment, history.file_id,
             history.history_id))
+
+    def update_session(self, session: Session, conn):
+        cursor = conn.cursor()
+        cursor.execute(update_sessions_query,
+                       (session.updated_at, session.status, session.file_id, session.epochs, session.reset_progress,
+                        session.session_id))
 
     def read_container(self, container_id, conn) -> Container:
         cursor = conn.cursor()
@@ -474,6 +347,17 @@ class DB:
 
         return history
 
+    def read_session(self, session_id, conn) -> Session:
+        cursor = conn.cursor()
+        cursor.execute(read_session_query, (session_id,))
+        query_result = cursor.fetchone()
+
+        session = Session(session_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
+                          status=query_result[3], file_id=query_result[4], epochs=query_result[5],
+                          reset_progress=query_result[6])
+
+        return session
+
     def check_model_id(self, model_id, conn):
         cursor = conn.cursor()
         cursor.execute(check_model_id_query, (model_id,))
@@ -500,6 +384,7 @@ class DB:
                 Container(container_id=row[0], created_at=row[1], updated_at=row[2],
                           dataset_id=row[3], model_id=row[4], optimizer_id=row[5],
                           normalise_dataset=row[6], name=row[7], comment=row[8]))
+        return result
 
     def read_models(self, conn):
         cursor = conn.cursor()
@@ -512,6 +397,7 @@ class DB:
             result.append(Model(model_id=row[0], created_at=row[1], updated_at=row[2],
                                 file_id=row[3], was_trained=row[4], sequential=row[5],
                                 code=row[6]))
+        return result
 
     def read_optimizers(self, conn):
         cursor = conn.cursor()
@@ -524,6 +410,7 @@ class DB:
             result.append(
                 Optimizer(optimizer_id=row[0], created_at=row[1], updated_at=row[2],
                           file_id=row[3], was_trained=row[4], code=row[5]))
+        return result
 
     def read_files(self, conn):
         cursor = conn.cursor()
@@ -536,6 +423,7 @@ class DB:
             result.append(
                 File(file_id=row[0], created_at=row[1], updated_at=row[2],
                      file_type=row[3], comment=row[4], path=row[5]))
+        return result
 
     def read_histories(self, conn):
         cursor = conn.cursor()
@@ -548,3 +436,16 @@ class DB:
                 History(history_id=row[0], created_at=row[1], updated_at=row[2],
                         container_id=row[3], model_id=row[4], optimizer_id=row[5],
                         history_type=row[6], comment=row[7], file_id=row[8]))
+        return result
+
+    def read_sessions(self, conn):
+        cursor = conn.cursor()
+        cursor.execute(read_sessions_query)
+        query_result = cursor.fetchall()
+        result: list[Session] = []
+
+        for row in query_result:
+            result.append(Session(session_id=row[0], created_at=row[1], updated_at=row[2],
+                                  status=row[3], file_id=row[4], epochs=row[5],
+                                  reset_progress=row[6]))
+        return result
