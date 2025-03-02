@@ -31,6 +31,8 @@ migration_query = """
         model_id INTEGER  DEFAULT NULL,
         optimizer_id INTEGER  DEFAULT NULL,
         normalise_dataset BLOB DEFAULT FALSE,
+        criterion_code TEXT,
+        online_training BLOB DEFAULT FALSE,
         name TEXT,
         comment TEXT DEFAULT '',
         FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
@@ -70,8 +72,8 @@ migration_query = """
 """
 
 create_container_query = """
-    INSERT INTO containers (created_at, updated_at, dataset_id, model_id, optimizer_id, normalise_dataset, name, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO containers (created_at, updated_at, dataset_id, model_id, optimizer_id, normalise_dataset,criterion_code,online_training, name, comment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 create_file_query = """
@@ -94,7 +96,7 @@ create_session_query = """
 """
 
 update_container_query = """
-    UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizer_id=?,normalise_dataset=?,
+    UPDATE containers SET updated_at=?,dataset_id=?,model_id=?,optimizer_id=?,normalise_dataset=?,criterion_code=?,online_training=?,
     name=?,comment=? WHERE container_id=?
 """
 
@@ -191,6 +193,7 @@ class DB:
     def create_tables(self, conn):
         cursor = conn.cursor()
         cursor.executescript(migration_query)
+
     def begin_transaction(self, conn):
         conn.execute("BEGIN;")
 
@@ -201,11 +204,13 @@ class DB:
         conn.rollback()
 
     def create_container(self, container: Container, conn):
+
         cursor = conn.cursor()
         cursor.execute(create_container_query,
                        (container.created_at, container.updated_at, container.dataset_id, container.model_id,
                         container.optimizer_id,
-                        container.normalise_dataset, container.name, container.comment))
+                        container.normalise_dataset, container.criterion_code, container.online_training,
+                        container.name, container.comment))
         new_id = cursor.lastrowid
 
         return new_id
@@ -263,6 +268,7 @@ class DB:
         cursor = conn.cursor()
         cursor.execute(update_container_query, (container.updated_at, container.dataset_id, container.model_id,
                                                 container.optimizer_id, container.normalise_dataset,
+                                                container.criterion_code, container.online_training,
                                                 container.name, container.comment, container.container_id))
 
     def update_file(self, file: File, conn):
@@ -301,7 +307,8 @@ class DB:
         query_result = cursor.fetchone()
         container = Container(container_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
                               dataset_id=query_result[3], model_id=query_result[4], optimizer_id=query_result[5],
-                              normalise_dataset=query_result[6], name=query_result[7], comment=query_result[8])
+                              normalise_dataset=query_result[6], criterion_code=query_result[7],
+                              online_training=query_result[8], name=query_result[9], comment=query_result[10])
 
         return container
 
@@ -383,7 +390,8 @@ class DB:
             result.append(
                 Container(container_id=row[0], created_at=row[1], updated_at=row[2],
                           dataset_id=row[3], model_id=row[4], optimizer_id=row[5],
-                          normalise_dataset=row[6], name=row[7], comment=row[8]))
+                          normalise_dataset=row[6], criterion_code=row[7],
+                          online_training=row[8], name=row[9], comment=row[10]))
         return result
 
     def read_models(self, conn):

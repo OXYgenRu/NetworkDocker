@@ -173,7 +173,7 @@ class UseCase:
         return optimizer
 
     def create_container(self, dataset_id: int = None, model_id: int = None, optimizer_id: int = None,
-                         normalise_dataset: bool = None,
+                         normalise_dataset: bool = None, criterion_code: str = None, online_training: bool = None,
                          name: str = None,
                          comment: str = None) -> Optional[Container]:
         conn = self.db_repository.get_connection()
@@ -188,7 +188,8 @@ class UseCase:
 
             container: Container = Container(created_at=now_time, updated_at=now_time, dataset_id=dataset_id,
                                              model_id=model_id, optimizer_id=optimizer_id,
-                                             normalise_dataset=normalise_dataset, name=name, comment=comment)
+                                             normalise_dataset=normalise_dataset, criterion_code=criterion_code,
+                                             online_training=online_training, name=name, comment=comment)
             container.container_id = self.db_repository.create_container(container, conn)
 
             history: History = History(created_at=now_time, updated_at=now_time, container_id=container.container_id,
@@ -418,7 +419,9 @@ class UseCase:
             container: Container = Container(created_at=now_time, updated_at=now_time,
                                              dataset_id=source_container.dataset_id, model_id=model.model_id,
                                              optimizer_id=optimizer.optimizer_id,
-                                             normalise_dataset=source_container.normalise_dataset)
+                                             normalise_dataset=source_container.normalise_dataset,
+                                             criterion_code=source_container.criterion_code,
+                                             online_training=source_container.online_training)
             container.name = source_container.name + "_"
 
             container.container_id = self.db_repository.create_container(container, conn)
@@ -517,7 +520,8 @@ class UseCase:
 
     def update_container(self, container_id: int, dataset_id: int = None, model_id: int = None,
                          optimizer_id: int = None,
-                         normalise_dataset: bool = None, name: str = None, comment: str = None):
+                         normalise_dataset: bool = None, criterion_code: str = None, online_training: bool = None,
+                         name: str = None, comment: str = None):
         conn = self.db_repository.get_connection()
         try:
             self.db_repository.begin_transaction(conn)
@@ -527,7 +531,8 @@ class UseCase:
 
             old_container_str = container.__str__()
 
-            container.update_if_provided(now_time, dataset_id, model_id, optimizer_id, normalise_dataset, name, comment)
+            container.update_if_provided(now_time, dataset_id, model_id, optimizer_id, normalise_dataset,
+                                         criterion_code, online_training, name, comment)
 
             self.db_repository.update_container(container, conn)
 

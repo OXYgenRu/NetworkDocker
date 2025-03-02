@@ -70,7 +70,8 @@ def create_container():
     if not data:
         return jsonify({"error": "Empty request body"}), 400
     container = use_case.create_container(data.get("dataset_id"), data.get("model_id"), data.get("optimizer_id"),
-                                          data.get("normalise_dataset"), data.get("name"), data.get("comment"))
+                                          data.get("normalise_dataset"), data.get("criterion_code"),
+                                          data.get("online_training"), data.get("name"), data.get("comment"))
     if container is None:
         return jsonify({"error": "container creating error"}), 400
     return jsonify({"message": f"{CONTAINER_CREATED}", "container": container.to_dict()}), 201
@@ -175,8 +176,9 @@ def update_container(container_id):
         return jsonify({"error": "Empty request body"}), 400
 
     container = use_case.update_container(container_id, data.get("dataset_id"), data.get("model_id"),
-                                          data.get("optimizer_id"), data.get("normalise_dataset"), data.get("name"),
-                                          data.get("comment"))
+                                          data.get("optimizer_id"), data.get("normalise_dataset"),
+                                          data.get("criterion_code"), data.get("name"),
+                                          data.get("online_training"), data.get("comment"))
     if container is None:
         return jsonify({"error": "container updating error"}), 400
     return jsonify({"message": f"{CONTAINER_UPDATED}", "container": container.to_dict()}), 201

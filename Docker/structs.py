@@ -1,6 +1,7 @@
 class Container:
     def __init__(self, container_id=None, created_at=None, updated_at=None, dataset_id=None, model_id=None,
-                 optimizer_id=None, normalise_dataset=None, name=None, comment=None):
+                 optimizer_id=None, normalise_dataset=None, criterion_code=None, online_training=None, name=None,
+                 comment=None):
         self.container_id = container_id
         self.created_at = created_at
         self.updated_at = updated_at
@@ -8,16 +9,18 @@ class Container:
         self.model_id = model_id
         self.optimizer_id = optimizer_id
         self.normalise_dataset = normalise_dataset
+        self.criterion_code = criterion_code
+        self.online_training = online_training
         self.name = name
         self.comment = comment
 
     def __str__(self):
         return (
             f"container_id {self.container_id} | updated_at {self.updated_at} | dataset_id {self.dataset_id} | model_id {self.model_id}"
-            f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | name {self.name} | comment {self.comment}")
+            f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | criterion_code {self.criterion_code} | online_training {self.online_training} | name {self.name} | comment {self.comment}")
 
     def update_if_provided(self, updated_at=None, dataset_id=None, model_id=None, optimizer_id=None,
-                           normalise_dataset=None, name=None, comment=None):
+                           normalise_dataset=None, criterion_code=None, online_training=None, name=None, comment=None):
         if updated_at is not None:
             self.updated_at = updated_at
         if dataset_id is not None:
@@ -28,6 +31,10 @@ class Container:
             self.optimizer_id = optimizer_id
         if normalise_dataset is not None:
             self.normalise_dataset = normalise_dataset
+        if criterion_code is not None:
+            self.criterion_code = criterion_code
+        if online_training is not None:
+            self.online_training = online_training
         if name is not None:
             self.name = name
         if comment is not None:
@@ -177,7 +184,7 @@ class Session:
             f"optimizer_id {self.session_id} | updated_at {self.updated_at} | status {self.status} | file_id {self.file_id}"
             f" | epochs {self.epochs} | reset_progress {self.reset_progress}")
 
-    def update_if_provided(self,  updated_at=None, status=None, file_id=None, epochs=None,
+    def update_if_provided(self, updated_at=None, status=None, file_id=None, epochs=None,
                            reset_progress=None):
         if self.updated_at is not None:
             self.updated_at = updated_at
