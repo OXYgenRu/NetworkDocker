@@ -17,7 +17,7 @@ class Container:
     def __str__(self):
         return (
             f"container_id {self.container_id} | updated_at {self.updated_at} | dataset_id {self.dataset_id} | model_id {self.model_id}"
-            f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | criterion_code {self.criterion_code} | online_training {self.online_training} | name {self.name} | comment {self.comment}")
+                f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | criterion_code {self.criterion_code} | online_training {self.online_training} | name {self.name} | comment {self.comment}")
 
     def update_if_provided(self, updated_at=None, dataset_id=None, model_id=None, optimizer_id=None,
                            normalise_dataset=None, criterion_code=None, online_training=None, name=None, comment=None):

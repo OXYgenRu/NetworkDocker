@@ -259,8 +259,8 @@ class DB:
 
     def create_session(self, session: Session, conn) -> int:
         cursor = conn.cursor()
-        cursor.execute(create_session_query, session.created_at, session.updated_at, session.status, session.file_id,
-                       session.epochs, session.reset_progress)
+        cursor.execute(create_session_query, (session.created_at, session.updated_at, session.status, session.file_id,
+                       session.epochs, session.reset_progress))
         new_id = cursor.lastrowid
         return new_id
 

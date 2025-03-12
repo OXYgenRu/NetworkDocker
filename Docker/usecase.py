@@ -242,8 +242,8 @@ class UseCase:
             now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             session: Session = Session(created_at=now_time, updated_at=now_time, status=status, file_id=file_id,
                                        epochs=epochs, reset_progress=reset_progress)
-            session.id = self.db_repository.create_session(session, conn)
-            self.db_repository.rollback_transaction(conn)
+            session.session_id = self.db_repository.create_session(session, conn)
+            self.db_repository.commit_transaction(conn)
         except Exception as e:
             self.db_repository.rollback_transaction(conn)
 
