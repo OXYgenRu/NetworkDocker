@@ -64,10 +64,12 @@ migration_query = """
         session_id INTEGER PRIMARY KEY AUTOINCREMENT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        container_id INTEGER DEFAULT NULL,
         status TEXT DEFAULT '',
         file_id INTEGER DEFAULT NULL,
         epochs INTEGER DEFAULT NULL,
-        reset_progress BLOB DEFAULT FALSE
+        reset_progress BLOB DEFAULT FALSE,
+        FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE NO ACTION
     )
 """
 
@@ -91,8 +93,8 @@ create_history_query = """
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """
 create_session_query = """
-    INSERT INTO sessions (created_at,updated_at,status,file_id,epochs,reset_progress) 
-    VALUES (?,?,?,?,?,?)
+    INSERT INTO sessions (created_at,updated_at,container_id,status,file_id,epochs,reset_progress) 
+    VALUES (?,?,?,?,?,?,?)
 """
 
 update_container_query = """
@@ -117,7 +119,7 @@ update_history_query = """
 """
 
 update_sessions_query = """
-    UPDATE sessions SET updated_at=?,status=?,file_id=?,epochs=?,reset_progress=? WHERE session_id=?
+    UPDATE sessions SET updated_at=?,container_id=?,status=?,file_id=?,epochs=?,reset_progress=? WHERE session_id=?
 """
 
 read_container_query = """
@@ -258,9 +260,11 @@ class DB:
         return new_id
 
     def create_session(self, session: Session, conn) -> int:
+        # print(session.to_dict())
         cursor = conn.cursor()
-        cursor.execute(create_session_query, (session.created_at, session.updated_at, session.status, session.file_id,
-                       session.epochs, session.reset_progress))
+        cursor.execute(create_session_query,
+                       (session.created_at, session.updated_at, session.container_id, session.status, session.file_id,
+                        session.epochs, session.reset_progress))
         new_id = cursor.lastrowid
         return new_id
 
@@ -298,7 +302,8 @@ class DB:
     def update_session(self, session: Session, conn):
         cursor = conn.cursor()
         cursor.execute(update_sessions_query,
-                       (session.updated_at, session.status, session.file_id, session.epochs, session.reset_progress,
+                       (session.updated_at, session.container_id, session.status, session.file_id, session.epochs,
+                        session.reset_progress,
                         session.session_id))
 
     def read_container(self, container_id, conn) -> Container:
@@ -358,10 +363,11 @@ class DB:
         cursor = conn.cursor()
         cursor.execute(read_session_query, (session_id,))
         query_result = cursor.fetchone()
-
+        # print(query_result)
         session = Session(session_id=query_result[0], created_at=query_result[1], updated_at=query_result[2],
-                          status=query_result[3], file_id=query_result[4], epochs=query_result[5],
-                          reset_progress=query_result[6])
+                          status=query_result[3],
+                          file_id=query_result[4], epochs=query_result[5], reset_progress=query_result[6],
+                          container_id=query_result[7])
 
         return session
 
@@ -453,7 +459,8 @@ class DB:
         result: list[Session] = []
 
         for row in query_result:
-            result.append(Session(session_id=row[0], created_at=row[1], updated_at=row[2],
-                                  status=row[3], file_id=row[4], epochs=row[5],
-                                  reset_progress=row[6]))
+            # print(row)
+            result.append(Session(session_id=row[0], created_at=row[1], updated_at=row[2], status=row[3],
+                                  file_id=row[4], epochs=row[5], reset_progress=row[6],
+                                  container_id=row[7]))
         return result

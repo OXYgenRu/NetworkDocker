@@ -47,7 +47,7 @@ def create_file():
     file = use_case.create_file(data.get("file_type"), data.get("comment"))
     if file is None:
         return jsonify({"error": "file creating error"}), 400
-    return jsonify({"message": f"{FILE_CREATED}", "model": file.to_dict()}), 201
+    return jsonify({"message": f"{FILE_CREATED}", "file": file.to_dict()}), 201
 
 
 @app.route("/optimizers", methods=["POST"])
@@ -60,7 +60,7 @@ def create_optimizer():
     optimizer = use_case.create_optimizer(data.get("code"))
     if optimizer is None:
         return jsonify({"error": "optimizer creating error"}), 400
-    return jsonify({"message": f"{OPTIMIZER_CREATED}", "model": optimizer.to_dict()}), 201
+    return jsonify({"message": f"{OPTIMIZER_CREATED}", "optimizer": optimizer.to_dict()}), 201
 
 
 @app.route("/containers", methods=["POST"])
@@ -98,7 +98,8 @@ def create_session():
 
     if not data:
         return jsonify({"error": "Empty request body"}), 400
-    session = use_case.create_session(data.get("status"), data.get("file_id"), data.get("epochs"),
+    session = use_case.create_session(data.get("container_id"), data.get("status"), data.get("file_id"),
+                                      data.get("epochs"),
                                       data.get("reset_progress"))
     if session is None:
         return jsonify({"error": "session creating error"}), 400
@@ -203,7 +204,7 @@ def update_session(session_id):
     if not data:
         return jsonify({"error": "Empty request body"}), 400
     session = use_case.update_session(session_id, data.get("status"), data.get("file_id"), data.get("epochs"),
-                                      data.get("reset_progress"))
+                                      data.get("reset_progress"),data.get("container_id"))
 
     if session is None:
         return jsonify({"error": "session updating error"}), 400

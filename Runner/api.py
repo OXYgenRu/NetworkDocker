@@ -1,5 +1,7 @@
+import multiprocessing
 import traceback
 
+import torch
 from flask import Flask, jsonify, request, g
 from usecase import Runner
 
@@ -7,7 +9,7 @@ app = Flask(__name__)
 runner = Runner()
 
 
-@app.route("/runner/containers/<int:container_id>/load")
+@app.route("/runner/containers/<int:container_id>/load", methods=["POST"])
 def load_container(container_id):
     data = request.json
 
@@ -20,7 +22,7 @@ def load_container(container_id):
     return jsonify({"message": "ok"}), 201
 
 
-@app.route("/runner/containers/<int:container_id>/shutdown")
+@app.route("/runner/containers/<int:container_id>/shutdown", methods=["POST"])
 def shutdown_container(container_id):
     try:
         runner.shutdown_container(container_id)
@@ -29,7 +31,7 @@ def shutdown_container(container_id):
     return jsonify({"message": "ok"}), 201
 
 
-@app.route("/runner/containers")
+@app.route("/runner/containers", methods=["GET"])
 def read_containers():
     try:
         containers = runner.read_containers()
@@ -38,4 +40,19 @@ def read_containers():
     return jsonify({"message": containers}), 201
 
 
-app.run(host='127.0.0.1', port=8080)
+@app.route("/runner/containers/<int:container_id>/execute", methods=["POST"])
+def execute_container(container_id):
+    data = request.json
+
+    if not data:
+        return jsonify({"error": "Empty request body"}), 400
+    try:
+        runner.execute_container(container_id, data.get("epochs"), data.get("reset_progress"))
+    except Exception:
+        return jsonify({"error": traceback.format_exc()}), 400
+    return jsonify({"message": "ok"}), 201
+
+
+if __name__ == "__main__":
+    torch.multiprocessing.set_start_method("spawn", force=True)
+    app.run(host='127.0.0.1', port=8080)

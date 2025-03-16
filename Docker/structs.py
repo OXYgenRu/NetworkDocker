@@ -17,7 +17,7 @@ class Container:
     def __str__(self):
         return (
             f"container_id {self.container_id} | updated_at {self.updated_at} | dataset_id {self.dataset_id} | model_id {self.model_id}"
-                f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | criterion_code {self.criterion_code} | online_training {self.online_training} | name {self.name} | comment {self.comment}")
+            f" | optimizer_id {self.optimizer_id} | normalise_dataset {self.normalise_dataset} | criterion_code {self.criterion_code} | online_training {self.online_training} | name {self.name} | comment {self.comment}")
 
     def update_if_provided(self, updated_at=None, dataset_id=None, model_id=None, optimizer_id=None,
                            normalise_dataset=None, criterion_code=None, online_training=None, name=None, comment=None):
@@ -169,11 +169,13 @@ class History:
 
 
 class Session:
-    def __init__(self, session_id=None, created_at=None, updated_at=None, status=None, file_id=None, epochs=None,
+    def __init__(self, session_id=None, created_at=None, updated_at=None, container_id=None, status=None, file_id=None,
+                 epochs=None,
                  reset_progress=None):
         self.session_id = session_id
         self.created_at = created_at
         self.updated_at = updated_at
+        self.container_id = container_id
         self.status = status
         self.file_id = file_id
         self.epochs = epochs
@@ -181,20 +183,23 @@ class Session:
 
     def __str__(self):
         return (
-            f"optimizer_id {self.session_id} | updated_at {self.updated_at} | status {self.status} | file_id {self.file_id}"
+            f"session_id {self.session_id} | updated_at {self.updated_at} | container_id {self.container_id} | status {self.status} | file_id {self.file_id}"
             f" | epochs {self.epochs} | reset_progress {self.reset_progress}")
 
-    def update_if_provided(self, updated_at=None, status=None, file_id=None, epochs=None,
+    def update_if_provided(self, updated_at=None, container_id=None, status=None, file_id=None, epochs=None,
                            reset_progress=None):
-        if self.updated_at is not None:
+
+        if updated_at is not None:
             self.updated_at = updated_at
-        if self.status is not None:
+        if container_id is not None:
+            self.container_id = container_id
+        if status is not None:
             self.status = status
-        if self.file_id is not None:
+        if file_id is not None:
             self.file_id = file_id
-        if self.epochs is not None:
+        if epochs is not None:
             self.epochs = epochs
-        if self.reset_progress is not None:
+        if reset_progress is not None:
             self.reset_progress = reset_progress
 
     def to_dict(self):

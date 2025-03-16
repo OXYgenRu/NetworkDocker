@@ -235,13 +235,14 @@ class UseCase:
             return None
         return history
 
-    def create_session(self, status=None, file_id=None, epochs=None, reset_progress=None) -> Optional[Session]:
+    def create_session(self, container_id=None, status=None, file_id=None, epochs=None, reset_progress=None) -> \
+            Optional[Session]:
         conn = self.db_repository.get_connection()
         try:
             self.db_repository.begin_transaction(conn)
             now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             session: Session = Session(created_at=now_time, updated_at=now_time, status=status, file_id=file_id,
-                                       epochs=epochs, reset_progress=reset_progress)
+                                       epochs=epochs, reset_progress=reset_progress, container_id=container_id)
             session.session_id = self.db_repository.create_session(session, conn)
             self.db_repository.commit_transaction(conn)
         except Exception as e:
@@ -589,7 +590,8 @@ class UseCase:
             return None
         return file
 
-    def update_session(self, session_id: int, status: str, file_id: int, epochs: int, reset_progress: bool):
+    def update_session(self, session_id: int, status: str, file_id: int, epochs: int, reset_progress: bool,
+                       container_id: int):
         conn = self.db_repository.get_connection()
         try:
             self.db_repository.begin_transaction(conn)
@@ -598,9 +600,11 @@ class UseCase:
             session = self.db_repository.read_session(session_id, conn)
 
             old_session_str = session.__str__()
-
-            session.update_if_provided(updated_at=now_time, status=status, file_id=file_id, epochs=epochs,
+            # print(session, "aa")
+            session.update_if_provided(container_id=container_id, updated_at=now_time, status=status, file_id=file_id,
+                                       epochs=epochs,
                                        reset_progress=reset_progress)
+            # print(session, "bb")
             self.db_repository.update_session(session, conn)
 
             comment = f"{old_session_str}\n{session.__str__()}"
