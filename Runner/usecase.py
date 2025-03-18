@@ -181,6 +181,7 @@ class ExecutableContainer:
 class Runner:
     def __init__(self):
         self.containers = {}
+        self.active_processes = {}
 
     def load_container(self, container_id: int, local_path: str):
         headers = {"Content-Type": "application/json"}
@@ -257,11 +258,17 @@ class Runner:
     #             "comment": "Container loaded"}
     #     requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
-    def read_containers(self) -> dict[dict]:
+    def read_statuses(self) -> dict[dict]:
         containers = {}
         for key, val in self.containers.items():
             containers[key] = {"id": key, "status": val.status}
         return containers
+
+    def update_statuses(self, container_id, status) -> dict:
+        if container_id not in self.containers:
+            raise KeyError("Container not found")
+        self.containers[container_id].status = status
+        return {"id": container_id, "status": self.containers[container_id].status}
 
     def execute_container(self, container_id: int, epochs: int, reset_progress: bool):
         headers = {"Content-Type": "application/json"}
@@ -309,14 +316,16 @@ class Runner:
             self.containers[container_id].optimizer_struct.was_trained = False
         if self.containers[container_id].status == ASSEMBLED:
             self.containers[container_id].disassemble_container()
+        self.containers[container_id].status = TRAINING
         try:
-            self.containers[container_id].status = TRAINING
 
             process = torch.multiprocessing.Process(target=self.train_model,
                                                     args=(self.containers[container_id],
                                                           epochs,
                                                           file_struct.path, session.session_id))
             process.start()
+            self.active_processes[container_id] = process
+
         except Exception:
             message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
@@ -325,7 +334,7 @@ class Runner:
             requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
             # print(message)
             raise
-        self.containers[container_id].status = BLUEPRINT
+        # self.containers[container_id].status = BLUEPRINT
 
         headers = {"Content-Type": "application/json"}
         data = {"container_id": container_id, "history_type": CONTAINER_EXECUTING,

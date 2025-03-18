@@ -31,13 +31,26 @@ def shutdown_container(container_id):
     return jsonify({"message": "ok"}), 201
 
 
-@app.route("/runner/containers", methods=["GET"])
-def read_containers():
+@app.route("/runner/statuses", methods=["GET"])
+def read_statuses():
     try:
-        containers = runner.read_containers()
+        containers = runner.read_statuses()
     except Exception:
         return jsonify({"error": traceback.format_exc()}), 400
     return jsonify({"message": containers}), 201
+
+
+@app.route("/runner/statuses/<int:container_id>", methods=["PUT"])
+def update_statuses(container_id):
+    data = request.json
+
+    if not data:
+        return jsonify({"error": "Empty request body"}), 400
+    try:
+        container = runner.update_statuses(container_id, data.get("status"))
+    except Exception:
+        return jsonify({"error": traceback.format_exc()}), 400
+    return jsonify({"message": container}), 201
 
 
 @app.route("/runner/containers/<int:container_id>/execute", methods=["POST"])
