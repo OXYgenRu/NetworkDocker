@@ -1,6 +1,7 @@
 import datetime
 from pprint import pprint
 
+import torch.nn
 from flask import Flask, jsonify, request, g
 from usecase import UseCase, MODEL_CREATED, FILE_CREATED, OPTIMIZER_CREATED, CONTAINER_CREATED, SESSION_CREATED, \
     HISTORY_CREATED, MODEL_COPIED, OPTIMIZER_COPIED, CONTAINER_COPIED, MODEL_UPDATED, OPTIMIZER_UPDATED, \
@@ -204,7 +205,7 @@ def update_session(session_id):
     if not data:
         return jsonify({"error": "Empty request body"}), 400
     session = use_case.update_session(session_id, data.get("status"), data.get("file_id"), data.get("epochs"),
-                                      data.get("reset_progress"),data.get("container_id"))
+                                      data.get("reset_progress"), data.get("container_id"))
 
     if session is None:
         return jsonify({"error": "session updating error"}), 400
@@ -319,6 +320,15 @@ def read_sessions():
     if sessions is None:
         return jsonify({"error": "sessions reading error"}), 400
     return jsonify({"message": f"{SESSIONS_READ}", "sessions": [item.to_dict() for item in sessions]})
+
+
+@app.route("/files/<int:file_id>/content", methods=["GET"])
+def read_file_content(file_id):
+    file_content = use_case.read_file_content(file_id)
+
+    if file_content is None:
+        return jsonify({"error": "file content reading error"}), 400
+    return jsonify({"message": f"file content read", "file_content": file_content})
 
 
 @app.teardown_appcontext

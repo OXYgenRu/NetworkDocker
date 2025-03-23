@@ -9,6 +9,11 @@ from Docker.structs import Container, Model, Optimizer, Session, History, File
 import requests
 import torch
 import os
+import matplotlib
+from matplotlib import pyplot as plt
+
+
+
 import multiprocessing
 
 from ignite.engine import Events
@@ -63,13 +68,15 @@ class ExecutableContainer:
         self.dataset = None
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def assemble_container(self):
+    def assemble_container(self, reset_progress):
+        print("assemble")
+        self.status = ASSEMBLED
         headers = {"Content-Type": "application/json"}
         data = {"container_id": self.container_struct.container_id, "history_type": CONTAINER_ASSEMBLING,
                 "comment": f"Container assembling started"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
         try:
-            self.load_model()
+            self.load_model(reset_progress)
         except Exception:
             error_message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
@@ -79,7 +86,7 @@ class ExecutableContainer:
             raise
 
         try:
-            self.load_optimizer()
+            self.load_optimizer(reset_progress)
         except Exception:
             error_message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
@@ -108,7 +115,7 @@ class ExecutableContainer:
             requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
             raise
 
-        self.train_set, self.valid_set = random_split(self.dataset, (0.95, 0.05))
+        self.train_set, self.valid_set = random_split(self.dataset, (0.90, 0.10))
 
         self.train_dataloader = DataLoader(self.train_set, batch_size=64, shuffle=True,
                                            collate_fn=collate_fn)
@@ -120,12 +127,15 @@ class ExecutableContainer:
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
     def disassemble_container(self):
+        print("desassemble")
+        self.status = BLUEPRINT
         headers = {"Content-Type": "application/json"}
         data = {"container_id": self.container_struct.container_id, "history_type": CONTAINER_DISASSEMBLING,
                 "comment": f"Container disassembling started"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
         try:
             torch.save(self.model.state_dict(), os.path.join(self.local_path, "storage", self.model_file.path))
+            self.model = None
         except Exception:
             error_message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
@@ -135,6 +145,7 @@ class ExecutableContainer:
             raise
         try:
             torch.save(self.optimizer.state_dict(), os.path.join(self.local_path, "storage", self.optimizer_file.path))
+            self.optimizer = None
         except Exception:
             error_message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
@@ -142,16 +153,18 @@ class ExecutableContainer:
                     "comment": f"Optimizer saving error\n{error_message}"}
             requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
             raise
+        self.model_struct.was_trained = True
+        self.optimizer_struct.was_trained = True
         requests.put(f"http://127.0.0.1:5000/models/{self.model_struct.model_id}",
-                     json={"was_trained": True}).raise_for_status()
+                     json={"was_trained": 1}).raise_for_status()
         requests.put(f"http://127.0.0.1:5000/optimizers/{self.optimizer_struct.optimizer_id}",
-                     json={"was_trained": True}).raise_for_status()
+                     json={"was_trained": 1}).raise_for_status()
         headers = {"Content-Type": "application/json"}
         data = {"container_id": self.container_struct.container_id, "history_type": CONTAINER_DISASSEMBLING,
                 "comment": f"Container disassembling completed"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
-    def load_model(self):
+    def load_model(self, reset_progress):
         if self.model_struct.sequential == 0:
             namespace = {"nn": torch.nn, "torch": torch}
             exec(self.model_struct.code, namespace)
@@ -159,15 +172,15 @@ class ExecutableContainer:
         else:
             code = f"nn.Sequential({self.model_struct.code})"
             self.model = eval(code, {"torch": torch})
-        if self.model_struct.was_trained != 0:
-            print("loading_model_from_file")
+        if self.model_struct.was_trained != 0 and reset_progress == 0:
+            print("loading_model_from_file", reset_progress)
             self.model.load_state_dict(torch.load(os.path.join(self.local_path, "storage", self.model_file.path)))
         self.model = self.model.to(self.device)
 
-    def load_optimizer(self):
+    def load_optimizer(self, reset_progress):
 
         self.optimizer = eval(self.optimizer_struct.code, {"torch": torch, "model": self.model})
-        if self.optimizer_struct.was_trained != 0:
+        if self.optimizer_struct.was_trained != 0 and reset_progress == 0:
             self.optimizer.load_state_dict(
                 torch.load(os.path.join(self.local_path, "storage", self.optimizer_file.path)))
 
@@ -179,9 +192,28 @@ class ExecutableContainer:
 
 
 class Runner:
-    def __init__(self):
-        self.containers = {}
-        self.active_processes = {}
+    def __init__(self, local_path="C:\\Users\\EgorRychkov\\PycharmProjects\\NetworkDocker\\Docker\\local"):
+        self.processes = {}
+        self.local_path = local_path
+
+    def create_process(self, container_id, process, stop_event):
+        self.processes[container_id] = {"id": container_id, "process": process, "stop_event": stop_event}
+
+    def delete_process(self, container_id):
+        if container_id not in self.processes:
+            raise KeyError("Process not found")
+        del self.processes[container_id]
+
+    def read_process_status(self, container_id):
+        if container_id not in self.processes:
+            raise KeyError("Process not found")
+        return self.processes[container_id]["process"].is_alive()
+
+    def stop_process(self, container_id):
+        if container_id not in self.processes:
+            raise KeyError("Process not found")
+        if self.processes[container_id]["process"].is_alive():
+            self.processes[container_id]["stop_event"].set()
 
     def load_container(self, container_id: int, local_path: str):
         headers = {"Content-Type": "application/json"}
@@ -242,33 +274,15 @@ class Runner:
             raise HTTPError("Optimizer file get error")
         optimizer_file_struct = File(**optimizer_file_response.json()["file"])
 
-        self.containers[container_id] = ExecutableContainer(container_struct, model_struct, optimizer_struct,
-                                                            dataset_struct, model_file_struct, optimizer_file_struct,
-                                                            local_path)
+        container = ExecutableContainer(container_struct, model_struct, optimizer_struct,
+                                        dataset_struct, model_file_struct, optimizer_file_struct,
+                                        local_path)
         headers = {"Content-Type": "application/json"}
         data = {"container_id": container_struct.container_id, "history_type": CONTAINER_LOADING,
                 "comment": "Container loaded"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
-    # def shutdown_container(self, container_id: int):
-    #     if container_id in self.containers:
-    #         del self.containers[container_id]
-    #     headers = {"Content-Type": "application/json"}
-    #     data = {"container_id": container_id, "history_type": "Container turned off",
-    #             "comment": "Container loaded"}
-    #     requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
-
-    def read_statuses(self) -> dict[dict]:
-        containers = {}
-        for key, val in self.containers.items():
-            containers[key] = {"id": key, "status": val.status}
-        return containers
-
-    def update_statuses(self, container_id, status) -> dict:
-        if container_id not in self.containers:
-            raise KeyError("Container not found")
-        self.containers[container_id].status = status
-        return {"id": container_id, "status": self.containers[container_id].status}
+        return container
 
     def execute_container(self, container_id: int, epochs: int, reset_progress: bool):
         headers = {"Content-Type": "application/json"}
@@ -276,13 +290,7 @@ class Runner:
                 "comment": f"Container executing prepare started"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
-        if container_id not in self.containers:
-            headers = {"Content-Type": "application/json"}
-            data = {"container_id": container_id, "history_type": CONTAINER_EXECUTING_ERROR,
-                    "comment": "container not found"}
-            requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
-            raise KeyError("Container not found")
-
+        container = self.load_container(container_id, self.local_path)
         try:
             headers = {"Content-Type": "application/json"}
             data = {"file_type": "log", "comment": f"{container_id} training log file"}
@@ -310,40 +318,67 @@ class Runner:
                     "comment": f"Session creating error\n {traceback.format_exc()}"}
             requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
             raise
-
-        if reset_progress:
-            self.containers[container_id].model_struct.was_trained = False
-            self.containers[container_id].optimizer_struct.was_trained = False
-        if self.containers[container_id].status == ASSEMBLED:
-            self.containers[container_id].disassemble_container()
-        self.containers[container_id].status = TRAINING
+        print(container.model_struct.was_trained)
         try:
-
+            stop_event = torch.multiprocessing.Event()
             process = torch.multiprocessing.Process(target=self.train_model,
-                                                    args=(self.containers[container_id],
+                                                    args=(container,
                                                           epochs,
-                                                          file_struct.path, session.session_id))
+                                                          file_struct.path, session.session_id, stop_event,
+                                                          reset_progress))
             process.start()
-            self.active_processes[container_id] = process
+            self.create_process(container_id, process, stop_event)
 
         except Exception:
             message = traceback.format_exc()
             headers = {"Content-Type": "application/json"}
             data = {"container_id": container_id, "history_type": CONTAINER_EXECUTING_ERROR,
-                    "comment": f"Container training error \n{message}"}
+                    "comment": f"Process creating error \n{message}"}
             requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
-            # print(message)
+
+            data = {"status": "failed"}
+            requests.put(f"http://127.0.0.1:5000/sessions/{session.session_id}", json=data, headers=headers)
+
             raise
-        # self.containers[container_id].status = BLUEPRINT
 
         headers = {"Content-Type": "application/json"}
         data = {"container_id": container_id, "history_type": CONTAINER_EXECUTING,
                 "comment": f"Container executing prepare completed"}
         requests.post(f"http://127.0.0.1:5000/histories", json=data, headers=headers)
 
+    def test_container(self, container_id: int):
+
+        container = self.load_container(container_id, self.local_path)
+        container.assemble_container(0)
+
+        container.model.eval()
+        test_loader = container.valid_dataloader
+        total_loss = 0.0
+        total = 0
+        deviations = []
+        with torch.no_grad():
+            for inputs, targets in test_loader:
+                inputs, targets = inputs.to(container.device), targets.to(container.device)
+
+                outputs = container.model(inputs)
+
+                deviation = (outputs - targets)
+                for i in deviation:
+                    deviations.append(i[0].cpu().numpy())
+
+                loss = container.criterion(outputs, targets)
+                total_loss += loss.item() * inputs.size(0)
+
+                total += targets.size(0)
+
+        avg_loss = total_loss / total
+
+        container.disassemble_container()
+        return avg_loss
+
     @staticmethod
     def train_model(container: ExecutableContainer, num_epochs,
-                    log_file_path, session_id):
+                    log_file_path, session_id, event, reset_progress):
         headers = {"Content-Type": "application/json"}
         data = {"container_id": container.container_struct.container_id, "history_type": CONTAINER_EXECUTING,
                 "comment": f"Container executing started"}
@@ -353,7 +388,7 @@ class Runner:
         data = {"status": "training"}
         requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
         try:
-            container.assemble_container()
+            container.assemble_container(reset_progress)
             container.model.to(container.device)
 
             train_losses, valid_losses = [], []
@@ -364,10 +399,20 @@ class Runner:
                 writer.writeheader()
 
             for epoch in range(num_epochs):
+                if event.is_set():
+                    headers = {"Content-Type": "application/json"}
+                    data = {"status": "stopped"}
+                    requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+                    return
                 container.model.train()
                 running_train_loss = 0.0
 
                 for inputs, targets in container.train_dataloader:
+                    if event.is_set():
+                        headers = {"Content-Type": "application/json"}
+                        data = {"status": "stopped"}
+                        requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+                        return
                     inputs, targets = inputs.to(container.device), targets.to(container.device)
 
                     container.optimizer.zero_grad()
@@ -416,3 +461,4 @@ class Runner:
             headers = {"Content-Type": "application/json"}
             data = {"status": "failed"}
             requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+        requests.delete(f"http://127.0.0.1:8080/runner/processes/{container.container_struct.container_id}")

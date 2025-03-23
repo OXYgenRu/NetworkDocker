@@ -855,4 +855,30 @@ class UseCase:
             print(f"Sessions reading Error: {e}")
             return None
         return sessions
+
+    def read_file_content(self, file_id: int):
+        conn = self.db_repository.get_connection()
+        try:
+            self.db_repository.begin_transaction(conn)
+            file = self.db_repository.read_file(file_id, conn)
+
+            s = ""
+            print(os.path.join("local", "storage", file.path))
+            with open(os.path.join("local", "storage", file.path), "r",
+                      encoding="utf-8") as csvfile:
+                s = csvfile.read()
+                print(s)
+
+            self.db_repository.commit_transaction(conn)
+        except Exception as e:
+            self.db_repository.rollback_transaction(conn)
+            now_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+            self.db_repository.begin_transaction(conn)
+            self.db_repository.create_history(History(created_at=now_time, updated_at=now_time, history_type=ERROR,
+                                                      comment=f"File content reading Error: {e}"), conn)
+            self.db_repository.commit_transaction(conn)
+            print(f"File content reading  Error: {e}")
+            return None
+        return s
 # def run_container(self, container_id: int):
