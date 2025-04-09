@@ -3,10 +3,16 @@ import traceback
 
 import torch
 from flask import Flask, jsonify, request, g
+
+from Runner.env.config import Config
+from Runner.env.env_builder import EnvBuilder
 from usecase import Runner
 
 app = Flask(__name__)
-runner = Runner()
+config = Config()
+config.parse("config.json")
+env_builder = EnvBuilder(config)
+runner = Runner(config, env_builder)
 
 
 @app.route("/runner/containers/<int:container_id>/execute", methods=["POST"])
@@ -29,6 +35,19 @@ def test_container(container_id):
     except Exception:
         return jsonify({"error": traceback.format_exc()}), 400
     return jsonify({"message": "ok", "avg_loss": avg_loss}), 201
+
+
+@app.route("/runner/containers/<int:container_id>/predict", methods=["POST"])
+def predict_container(container_id):
+    data = request.json
+
+    if not data:
+        return jsonify({"error": "Empty request body"}), 400
+    try:
+        result = runner.predict(container_id, data.get("tensor"))
+    except Exception:
+        return jsonify({"error": traceback.format_exc()}), 400
+    return jsonify({"message": "ok", "prediction": result}), 201
 
 
 @app.route("/runner/processes/<int:container_id>", methods=["DELETE"])
@@ -58,6 +77,5 @@ def stop_process(container_id):
     return jsonify({"message": "signal to stop process sent"}), 201
 
 
-if __name__ == "__main__":
-    torch.multiprocessing.set_start_method("spawn", force=True)
-    app.run(host='127.0.0.1', port=8080)
+def start():
+    app.run(host=config.runner_host, port=config.runner_port)

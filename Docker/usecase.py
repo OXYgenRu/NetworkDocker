@@ -1,6 +1,8 @@
 import datetime
 from typing import Optional
 
+from Docker.env.config import Config
+from Docker.env.env_builder import EnvBuilder
 from database import DB
 from structs import Container, Model, Optimizer, History, File, Session
 import shutil
@@ -45,8 +47,10 @@ ERROR = "error"
 
 
 class UseCase:
-    def __init__(self, db_repository: DB):
+    def __init__(self, db_repository: DB, config: Config, env_builder: EnvBuilder):
         self.db_repository = db_repository
+        self.config = config
+        self.env_builder = env_builder
 
     def create_tables(self):
         conn = self.db_repository.get_connection()
@@ -80,7 +84,7 @@ class UseCase:
             model_file.path = generate_path(model_file_id, "model", now_time)
             self.db_repository.update_file(model_file, conn)
 
-            with open(os.path.join("local", "storage", model_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(model_file.path), "w") as f:
                 pass
 
             model: Model = Model(created_at=now_time, updated_at=now_time, file_id=model_file_id, was_trained=False,
@@ -145,7 +149,7 @@ class UseCase:
             optimizer_file.file_id = optimizer_file_id
             optimizer_file.path = generate_path(optimizer_file_id, "optimizer", now_time)
             self.db_repository.update_file(optimizer_file, conn)
-            with open(os.path.join("local", "storage", optimizer_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(optimizer_file.path), "w") as f:
                 pass
 
             optimizer: Optimizer = Optimizer(created_at=now_time, updated_at=now_time, file_id=optimizer_file_id,
@@ -269,7 +273,7 @@ class UseCase:
             model_file.file_id = model_file_id
             model_file.path = generate_path(model_file_id, "model", now_time)
             self.db_repository.update_file(model_file, conn)
-            with open(os.path.join("local", "storage", model_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(model_file.path), "w") as f:
                 pass
 
             source_model = self.db_repository.read_model(source_model_id, conn)
@@ -280,8 +284,8 @@ class UseCase:
                 model.was_trained = source_model.was_trained
                 source_model_file = self.db_repository.read_file(source_model.file_id, conn)
 
-                shutil.copy(os.path.join("local", "storage", source_model_file.path),
-                            os.path.join("local", "storage", model_file.path))
+                shutil.copy(self.env_builder.get_storage_path(source_model_file.path),
+                            self.env_builder.get_storage_path(model_file.path))
             model.model_id = self.db_repository.create_model(model, conn)
 
             history: History = History(created_at=now_time, updated_at=now_time, model_id=model.model_id,
@@ -315,7 +319,7 @@ class UseCase:
             optimizer_file.file_id = optimizer_file_id
             optimizer_file.path = generate_path(optimizer_file_id, "optimizer", now_time)
             self.db_repository.update_file(optimizer_file, conn)
-            with open(os.path.join("local", "storage", optimizer_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(optimizer_file.path), "w") as f:
                 pass
 
             source_optimizer = self.db_repository.read_optimizer(source_optimizer_id, conn)
@@ -327,8 +331,8 @@ class UseCase:
                 optimizer.was_trained = source_optimizer.was_trained
                 source_optimizer_file = self.db_repository.read_file(source_optimizer.file_id, conn)
 
-                shutil.copy(os.path.join("local", "storage", source_optimizer_file.path),
-                            os.path.join("local", "storage", optimizer_file.path))
+                shutil.copy(self.env_builder.get_storage_path(source_optimizer_file.path),
+                            self.env_builder.get_storage_path(optimizer_file.path))
             optimizer.optimizer_id = self.db_repository.create_optimizer(optimizer, conn)
 
             history: History = History(created_at=now_time, updated_at=now_time, optimizer_id=optimizer.optimizer_id,
@@ -366,7 +370,7 @@ class UseCase:
             model_file.file_id = model_file_id
             model_file.path = generate_path(model_file_id, "model", now_time)
             self.db_repository.update_file(model_file, conn)
-            with open(os.path.join("local", "storage", model_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(model_file.path), "w") as f:
                 pass
 
             source_model = self.db_repository.read_model(source_container.model_id, conn)
@@ -377,8 +381,8 @@ class UseCase:
                 model.was_trained = source_model.was_trained
                 source_model_file = self.db_repository.read_file(source_model.file_id, conn)
 
-                shutil.copy(os.path.join("local", "storage", source_model_file.path),
-                            os.path.join("local", "storage", model_file.path))
+                shutil.copy(self.env_builder.get_storage_path(source_model_file.path),
+                            self.env_builder.get_storage_path(model_file.path))
             model.model_id = self.db_repository.create_model(model, conn)
 
             history: History = History(created_at=now_time, updated_at=now_time, model_id=model.model_id,
@@ -394,7 +398,7 @@ class UseCase:
             optimizer_file.file_id = optimizer_file_id
             optimizer_file.path = generate_path(optimizer_file_id, "optimizer", now_time)
             self.db_repository.update_file(optimizer_file, conn)
-            with open(os.path.join("local", "storage", optimizer_file.path), "w") as f:
+            with open(self.env_builder.get_storage_path(optimizer_file.path), "w") as f:
                 pass
 
             source_optimizer = self.db_repository.read_optimizer(source_container.optimizer_id, conn)
@@ -406,8 +410,8 @@ class UseCase:
                 optimizer.was_trained = source_optimizer.was_trained
                 source_optimizer_file = self.db_repository.read_file(source_optimizer.file_id, conn)
 
-                shutil.copy(os.path.join("local", "storage", source_optimizer_file.path),
-                            os.path.join("local", "storage", optimizer_file.path))
+                shutil.copy(self.env_builder.get_storage_path(source_optimizer_file.path),
+                            self.env_builder.get_storage_path(optimizer_file.path))
             optimizer.optimizer_id = self.db_repository.create_optimizer(optimizer, conn)
 
             history: History = History(created_at=now_time, updated_at=now_time, optimizer_id=optimizer.optimizer_id,
@@ -863,11 +867,9 @@ class UseCase:
             file = self.db_repository.read_file(file_id, conn)
 
             s = ""
-            print(os.path.join("local", "storage", file.path))
-            with open(os.path.join("local", "storage", file.path), "r",
+            with open(self.env_builder.get_storage_path(file.path), "r",
                       encoding="utf-8") as csvfile:
                 s = csvfile.read()
-                print(s)
 
             self.db_repository.commit_transaction(conn)
         except Exception as e:
@@ -881,4 +883,3 @@ class UseCase:
             print(f"File content reading  Error: {e}")
             return None
         return s
-# def run_container(self, container_id: int):

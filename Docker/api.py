@@ -1,20 +1,23 @@
-import datetime
-from pprint import pprint
+import os
 
-import torch.nn
 from flask import Flask, jsonify, request, g
-from usecase import UseCase, MODEL_CREATED, FILE_CREATED, OPTIMIZER_CREATED, CONTAINER_CREATED, SESSION_CREATED, \
+
+from Docker.env.config import Config
+from Docker.env.env_builder import EnvBuilder
+from usecase import MODEL_CREATED, FILE_CREATED, OPTIMIZER_CREATED, CONTAINER_CREATED, SESSION_CREATED, \
     HISTORY_CREATED, MODEL_COPIED, OPTIMIZER_COPIED, CONTAINER_COPIED, MODEL_UPDATED, OPTIMIZER_UPDATED, \
     CONTAINER_UPDATED, FILE_UPDATED, SESSION_UPDATED, CONTAINER_READ, FILE_READ, MODEL_READ, OPTIMIZER_READ, \
     HISTORY_READ, SESSION_READ, CONTAINERS_READ, MODELS_READ, OPTIMIZERS_READ, FILES_READ, HISTORIES_READ, SESSIONS_READ
-import threading
 
 from database import DB
 from usecase import UseCase
 
 app = Flask(__name__)
-db = DB()
-use_case = UseCase(db)
+config = Config()
+config.parse(os.path.join("config.json"))
+env_builder = EnvBuilder(config)
+db = DB(config, env_builder)
+use_case = UseCase(db, config, env_builder)
 
 
 @app.route("/tables", methods=["POST"])
@@ -179,8 +182,8 @@ def update_container(container_id):
 
     container = use_case.update_container(container_id, data.get("dataset_id"), data.get("model_id"),
                                           data.get("optimizer_id"), data.get("normalise_dataset"),
-                                          data.get("criterion_code"), data.get("name"),
-                                          data.get("online_training"), data.get("comment"))
+                                          data.get("criterion_code"),
+                                          data.get("online_training"), data.get("name"), data.get("comment"))
     if container is None:
         return jsonify({"error": "container updating error"}), 400
     return jsonify({"message": f"{CONTAINER_UPDATED}", "container": container.to_dict()}), 201
@@ -331,6 +334,9 @@ def read_file_content(file_id):
     return jsonify({"message": f"file content read", "file_content": file_content})
 
 
+# @app.route("/runner/containers/<int:container_id>/execute",methods=["POST"])
+# def runner_execute_container(container_id):
+#     requests.post()
 @app.teardown_appcontext
 def close_db(error):
     db_conn = g.pop("db_conn", None)
@@ -338,5 +344,5 @@ def close_db(error):
         db_conn.close()
 
 
-if __name__ == '__main__':
-    app.run()
+def start():
+    app.run(host=config.docker_host, port=config.docker_port)

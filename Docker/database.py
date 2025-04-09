@@ -1,6 +1,10 @@
 import datetime
+import os.path
 import sqlite3
 from flask import g
+
+from Docker.env.config import Config
+from Docker.env.env_builder import EnvBuilder
 from structs import Container, Model, Optimizer, History, File, Session
 
 migration_query = """
@@ -179,12 +183,13 @@ read_sessions_query = """
 
 
 class DB:
-    def __init__(self):
-        self.conn = sqlite3.connect("local/database.db")
+    def __init__(self, config: Config, env_builder: EnvBuilder):
+        self.config = config
+        self.env_builder = env_builder
 
     def get_connection(self):
         if 'db_conn' not in g:
-            g.db_conn = sqlite3.connect("local/database.db")
+            g.db_conn = sqlite3.connect(self.env_builder.get_local_path("database.db"))
         return g.db_conn
 
     def close_connection(self):
