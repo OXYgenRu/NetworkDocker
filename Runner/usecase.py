@@ -157,9 +157,9 @@ class ExecutableContainer:
         self.model_struct.was_trained = True
         self.optimizer_struct.was_trained = True
 
-        requests.put(f"http://127.0.0.1:5000/models/{self.model_struct.model_id}",
+        requests.put(f"{self.config.get_docker_ip()}/models/{self.model_struct.model_id}",
                      json={"was_trained": 1}).raise_for_status()
-        requests.put(f"http://127.0.0.1:5000/optimizers/{self.optimizer_struct.optimizer_id}",
+        requests.put(f"{self.config.get_docker_ip()}/optimizers/{self.optimizer_struct.optimizer_id}",
                      json={"was_trained": 1}).raise_for_status()
 
         log_history(self.container_struct.container_id, CONTAINER_DISASSEMBLING, f"Container disassembling completed",
@@ -216,42 +216,42 @@ class Runner:
 
     def load_container(self, container_id: int):
         log_history(container_id, CONTAINER_LOADING, f"Container loading started", self.config)
-        container_response = requests.get(f"http://127.0.0.1:5000/containers/{container_id}")
+        container_response = requests.get(f"{self.config.get_docker_ip()}/containers/{container_id}")
         if container_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Container loading response returned {container_response.status_code}", self.config)
             raise HTTPError("Container get error")
         container_struct = Container(**container_response.json()["container"])
 
-        model_response = requests.get(f"http://127.0.0.1:5000/models/{container_struct.model_id}")
+        model_response = requests.get(f"{self.config.get_docker_ip()}/models/{container_struct.model_id}")
         if model_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Model loading response returned {model_response.status_code}", self.config)
             raise HTTPError("Model get error")
         model_struct = Model(**model_response.json()["model"])
 
-        optimizer_response = requests.get(f"http://127.0.0.1:5000/optimizers/{container_struct.optimizer_id}")
+        optimizer_response = requests.get(f"{self.config.get_docker_ip()}/optimizers/{container_struct.optimizer_id}")
         if optimizer_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Optimizer loading response returned {optimizer_response.status_code}", self.config)
             raise HTTPError("Optimizer get error")
         optimizer_struct = Optimizer(**optimizer_response.json()["optimizer"])
 
-        dataset_response = requests.get(f"http://127.0.0.1:5000/files/{container_struct.dataset_id}")
+        dataset_response = requests.get(f"{self.config.get_docker_ip()}/files/{container_struct.dataset_id}")
         if dataset_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Dataset loading response returned {dataset_response.status_code}", self.config)
             raise HTTPError("Dataset get error")
         dataset_struct = File(**dataset_response.json()["file"])
 
-        model_file_response = requests.get(f"http://127.0.0.1:5000/files/{model_struct.file_id}")
+        model_file_response = requests.get(f"{self.config.get_docker_ip()}/files/{model_struct.file_id}")
         if model_file_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Model file loading response returned {model_file_response.status_code}", self.config)
             raise HTTPError("Model file get error")
         model_file_struct = File(**model_file_response.json()["file"])
 
-        optimizer_file_response = requests.get(f"http://127.0.0.1:5000/files/{optimizer_struct.file_id}")
+        optimizer_file_response = requests.get(f"{self.config.get_docker_ip()}/files/{optimizer_struct.file_id}")
         if optimizer_file_response.status_code != 201:
             log_history(container_id, CONTAINER_LOADING_ERROR,
                         f"Optimizer file loading response returned {optimizer_file_response.status_code}", self.config)
@@ -271,7 +271,7 @@ class Runner:
         try:
             headers = {"Content-Type": "application/json"}
             data = {"file_type": "log", "comment": f"{container_id} training log file"}
-            file_request = requests.post(f"http://127.0.0.1:5000/files", json=data, headers=headers)
+            file_request = requests.post(f"{self.config.get_docker_ip()}/files", json=data, headers=headers)
             file_request.raise_for_status()
 
             file_struct = File(**file_request.json()["file"])
@@ -284,7 +284,7 @@ class Runner:
             data = {"container_id": container_id, "status": "starting", "epochs": epochs,
                     "file_id": file_struct.file_id,
                     "reset_progress": reset_progress}
-            session_request = requests.post(f"http://127.0.0.1:5000/sessions", json=data, headers=headers)
+            session_request = requests.post(f"{self.config.get_docker_ip()}/sessions", json=data, headers=headers)
             session_request.raise_for_status()
             session = Session(**session_request.json()["session"])
         except Exception:
@@ -307,7 +307,7 @@ class Runner:
             log_history(container_id, CONTAINER_EXECUTING_ERROR, f"Process creating error \n{message}", self.config)
 
             data = {"status": "failed"}
-            requests.put(f"http://127.0.0.1:5000/sessions/{session.session_id}", json=data, headers=headers)
+            requests.put(f"{self.config.get_docker_ip()}/sessions/{session.session_id}", json=data, headers=headers)
 
             raise
         log_history(container_id, CONTAINER_EXECUTING, f"Container executing prepare completed", self.config)
@@ -376,7 +376,7 @@ class Runner:
 
         headers = {"Content-Type": "application/json"}
         data = {"status": "training"}
-        requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+        requests.put(f"{container.config.get_docker_ip()}/sessions/{session_id}", json=data, headers=headers)
         try:
             container.assemble_container(reset_progress, "train")
             container.model.to(container.device)
@@ -393,7 +393,8 @@ class Runner:
                 if event.is_set():
                     headers = {"Content-Type": "application/json"}
                     data = {"status": "stopped"}
-                    requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+                    requests.put(f"{container.config.get_docker_ip()}/sessions/{session_id}", json=data,
+                                 headers=headers)
                     return
                 container.model.train()
                 running_train_loss = 0.0
@@ -402,7 +403,8 @@ class Runner:
                     if event.is_set():
                         headers = {"Content-Type": "application/json"}
                         data = {"status": "stopped"}
-                        requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+                        requests.put(f"{container.config.get_docker_ip()}/sessions/{session_id}", json=data,
+                                     headers=headers)
                         return
                     inputs, targets = inputs.to(container.device), targets.to(container.device)
 
@@ -440,11 +442,12 @@ class Runner:
                         container.config)
             headers = {"Content-Type": "application/json"}
             data = {"status": "completed"}
-            requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
+            requests.put(f"{container.config.get_docker_ip()}/sessions/{session_id}", json=data, headers=headers)
         except Exception:
             log_history(container.container_struct.container_id, CONTAINER_EXECUTING_ERROR,
                         f"Container executing error\n{traceback.format_exc()}", container.config)
             headers = {"Content-Type": "application/json"}
             data = {"status": "failed"}
-            requests.put(f"http://127.0.0.1:5000/sessions/{session_id}", json=data, headers=headers)
-        requests.delete(f"http://127.0.0.1:8080/runner/processes/{container.container_struct.container_id}")
+            requests.put(f"{container.config.get_docker_ip()}/sessions/{session_id}", json=data, headers=headers)
+        requests.delete(
+            f"{container.config.get_runner_ip()}/runner/processes/{container.container_struct.container_id}")
